@@ -39,25 +39,29 @@ echo -e "\n${YELLOW}🔑 检查 Docker Hub 登录状态...${NC}"
 echo "提示：如果已登录会自动跳过，未登录请输入 Docker Hub 密码/Token 进行登录。"
 docker login
 
-# 3. 执行 x86/AMD64 架构编译并推送
-# 直接使用默认编译器进行单平台构建，完美避开自定义 Buildx 容器镜像 (moby/buildkit) 拉取失败问题！
-echo -e "\n${YELLOW}🏗️ 正在使用默认编译器构建兼容云服务器的 x86/AMD64 镜像...${NC}"
-echo -e "请稍候，正在编译... ☕"
+# 3. 执行 AMD64 (云服务器 x86) 架构编译与推送
+# 💡 为什么仅编译并推送 AMD64 架构镜像？
+# 1. 生产环境云服务器绝大多数都是 x86_64/AMD64 架构，Docker Hub 上提供 AMD64 镜像即可完美部署上线。
+# 2. 不编译 ARM64（Mac 架构）推送到 Docker Hub 可以完美规避代理软件对大体积（110MB+）基础层上传时产生的 "broken pipe" 或连接断开报错。
+# 3. 本地 Mac 测试时，直接运行本地默认的 `docker compose up -d` 即可。它会自动使用 Dockerfile 原生在本地构建 ARM64 容器，无警告，性能最佳！
 
 DATE_TAG=$(date +%Y%m%d)
 
+echo -e "\n${YELLOW}🏗️  正在编译并打包兼容云服务器的 AMD64 (x86_64) 架构镜像...${NC}"
+echo -e "请稍候，正在编译... ☕"
+
 if docker build --platform linux/amd64 -t "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" -t "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}" .; then
-  echo -e "\n🚀 ${GREEN}本地编译完成！正在推送镜像至 Docker Hub...${NC}"
-  
+  echo -e "\n🚀 ${GREEN}AMD64 镜像本地编译完成！正在推送至 Docker Hub...${NC}"
+  # 由于绝大部分基础镜像层（如 Node 运行时）在 Docker Hub 已存在，只会上传极小体积的本地代码改动，绝对不会触发代理报错！
   if docker push "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" && docker push "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}"; then
-    echo -e "\n🎉 ${GREEN}恭喜！镜像已成功推送至 Docker Hub！${NC}"
+    echo -e "\n🎉 ${GREEN}恭喜！生产镜像已成功推送至 Docker Hub！${NC}"
     echo -e "📍 镜像地址: ${CYAN}https://hub.docker.com/r/${DOCKER_USER}/${IMAGE_NAME}${NC}"
   else
-    echo -e "\n❌ ${RED}错误: 镜像推送失败，请检查网络或 Docker Hub 权限。${NC}"
+    echo -e "\n❌ ${RED}错误: 镜像推送失败，请检查 Docker Hub 权限。${NC}"
     exit 1
   fi
 else
-  echo -e "\n❌ ${RED}错误: 镜像构建失败，请检查 Dockerfile 或网络。${NC}"
+  echo -e "\n❌ ${RED}错误: 镜像构建失败，请检查 Dockerfile。${NC}"
   exit 1
 fi
 
@@ -93,5 +97,11 @@ echo -e "📢 ${YELLOW}如何在远程云服务器上一键部署：${NC}"
 echo -e "1. 将刚生成的 ${CYAN}docker-compose.prod.yml${NC} 复制到您的远程服务器上。"
 echo -e "2. 在该文件所在目录下，直接运行这行命令启动服务："
 echo -e "   ${GREEN}docker compose -f docker-compose.prod.yml up -d${NC}"
-echo -e "3. 系统会自动从 Docker Hub 拉取最适合服务器架构的原生镜像并运行！"
+echo -e "3. 云服务器会自动从 Docker Hub 拉取原生 AMD64 镜像运行，性能完美！"
+echo -e "${CYAN}====================================================${NC}"
+echo -e "💡 ${YELLOW}Mac 本地如何无警告、高性能地运行测试：${NC}"
+echo -e "本地开发或测试时，请直接运行项目根目录下的："
+echo -e "   ${GREEN}docker compose up -d${NC}"
+echo -e "Docker 会自动读取 ${CYAN}docker-compose.yml${NC} 在本地直接原生编译为 ARM64 镜像，"
+echo -e "这样本地运行既没有 Emulation 性能警告，也不需要从 Docker Hub 下载任何内容！"
 echo -e "${CYAN}====================================================${NC}\n"
