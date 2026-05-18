@@ -47,4 +47,4 @@ Desktop.ini
 # Docker Hub local deployments
 docker-compose.prod.yml
 
-./package-lock.json
+package-lock.json
