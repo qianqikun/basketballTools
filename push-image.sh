@@ -39,24 +39,25 @@ echo -e "\n${YELLOW}🔑 检查 Docker Hub 登录状态...${NC}"
 echo "提示：如果已登录会自动跳过，未登录请输入 Docker Hub 密码/Token 进行登录。"
 docker login
 
-# 3. 创建并启用 Multi-arch (多架构) Buildx 编译器
-# 这一步非常关键！允许在 Mac (ARM64) 上直接构建出兼容云服务器 (x86_64/AMD64) 的原生镜像！
-echo -e "\n${YELLOW}🛠️ 初始化 Docker Buildx 多架构编译器...${NC}"
-docker buildx create --name hoops-builder --use 2>/dev/null || docker buildx use hoops-builder
-docker buildx inspect --bootstrap
+# 3. 执行 x86/AMD64 架构编译并推送
+# 直接使用默认编译器进行单平台构建，完美避开自定义 Buildx 容器镜像 (moby/buildkit) 拉取失败问题！
+echo -e "\n${YELLOW}🏗️ 正在使用默认编译器构建兼容云服务器的 x86/AMD64 镜像...${NC}"
+echo -e "请稍候，正在编译... ☕"
 
-# 4. 执行多架构编译并推送
-echo -e "\n${YELLOW}🏗️ 正在构建多架构镜像 (linux/amd64, linux/arm64) 并直接推送至 Docker Hub...${NC}"
-echo -e "请稍候，这会拉取依赖并进行交叉编译，耗时可能较长... ☕"
-
-# 自动生成当前日期作为版本 Tag，同时发布 latest
 DATE_TAG=$(date +%Y%m%d)
 
-if docker buildx build --platform linux/amd64,linux/arm64 -t "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" -t "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}" --push .; then
-  echo -e "\n🎉 ${GREEN}恭喜！多架构镜像已成功推送至 Docker Hub！${NC}"
-  echo -e "📍 镜像地址: ${CYAN}https://hub.docker.com/r/${DOCKER_USER}/${IMAGE_NAME}${NC}"
+if docker build --platform linux/amd64 -t "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" -t "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}" .; then
+  echo -e "\n🚀 ${GREEN}本地编译完成！正在推送镜像至 Docker Hub...${NC}"
+  
+  if docker push "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" && docker push "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}"; then
+    echo -e "\n🎉 ${GREEN}恭喜！镜像已成功推送至 Docker Hub！${NC}"
+    echo -e "📍 镜像地址: ${CYAN}https://hub.docker.com/r/${DOCKER_USER}/${IMAGE_NAME}${NC}"
+  else
+    echo -e "\n❌ ${RED}错误: 镜像推送失败，请检查网络或 Docker Hub 权限。${NC}"
+    exit 1
+  fi
 else
-  echo -e "\n❌ ${RED}错误: 镜像构建或推送失败，请检查网络或 Docker Hub 权限。${NC}"
+  echo -e "\n❌ ${RED}错误: 镜像构建失败，请检查 Dockerfile 或网络。${NC}"
   exit 1
 fi
 
