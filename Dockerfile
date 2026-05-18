@@ -1,5 +1,5 @@
-# 使用官方 Node.js 18 基础镜像 (使用已验证的稳定国内加速代理，绕过 auth.docker.io DNS 污染)
-FROM docker.1ms.run/library/node:18-slim
+# 使用官方 Node.js 20 基础镜像 (使用已验证的稳定国内加速代理，绕过 auth.docker.io DNS 污染)
+FROM docker.1ms.run/library/node:20-slim    
 
 # 安装 SQLite3 构建所需的底层依赖工具（作为编译回退保障，同时清理缓存）
 RUN apt-get update && apt-get install -y \
@@ -11,11 +11,15 @@ RUN apt-get update && apt-get install -y \
 # 设置容器内工作目录
 WORKDIR /app
 
-# 复制依赖描述文件
-COPY package*.json ./
+# 只复制 package.json，完全排除 package-lock.json。
+# 💡 核心避坑指南：因为 package-lock.json 内含有瓜子内网私有源域名 (npm.guazi-corp.com)，
+# 容器内无法解析下载该内网域名下的 tgz 包，导致 npm ci 强行拉取时失败或拉下来全是“空壳文件夹”。
+# 通过不复制 lockfile，并使用淘宝公网源安装，可以彻底规避此问题！
+COPY package.json ./
 
-# 安装依赖（--only=production 剔除开发依赖，保持轻量）
-RUN npm ci --only=production
+# 安装依赖（配置国内极速镜像源，强制从公网全新下载）
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install --production --no-audit --no-fund
 
 # 复制项目其他所有源码
 COPY . .
@@ -32,4 +36,5 @@ ENV PORT=3000
 ENV NODE_ENV=production
 
 # 启动服务器
-CMD ["npm", "start"]
+# 💡 生产环境最佳实践：直接使用 node 启动，让其作为 PID 1 进程，以便能瞬间响应并处理系统的优雅停机信号（如 SIGTERM）
+CMD ["node", "server/index.js"]
