@@ -6,6 +6,5 @@ npm-debug.log
 data.sqlite
 data.sqlite-journal
 data/
-Dockerfile
 docker-compose.yml
 README.md
