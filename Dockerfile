@@ -18,8 +18,12 @@ WORKDIR /app
 COPY package.json ./
 
 # 安装依赖（配置国内极速镜像源，强制从公网全新下载）
+# 安装依赖（--only=production 剔除开发依赖，保持轻量）
+# 💡 核心避坑指南：sqlite3 预编译二进制可能要求 GLIBC 2.38，而 node:20-slim (Debian Bookworm) 只提供 GLIBC 2.36，
+# 因此必须在安装后通过 --build-from-source 强行从源码重新编译 sqlite3，使其 100% 兼容容器内的 GLIBC 版本！
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm install --production --no-audit --no-fund
+    npm install --production --no-audit --no-fund && \
+    npm rebuild sqlite3 --build-from-source --no-audit --no-fund
 
 # 复制项目其他所有源码
 COPY . .
