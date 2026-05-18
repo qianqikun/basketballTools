@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  basketball-tools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: basketball-tools
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/app/data
+      - PORT=3000
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>篮球比赛工具</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <!-- Boxicons for icons -->
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo">
+        <i class='bx bxs-basketball'></i>
+        <span>HoopsManager</span>
+      </div>
+      <button id="menu-toggle-btn" class="menu-toggle-btn">
+        <i class='bx bx-menu'></i>
+      </button>
+      <nav class="nav-menu">
+        <button class="nav-item active" data-target="registration">
+          <i class='bx bx-user-plus'></i> 报名管理
+        </button>
+        <button class="nav-item" data-target="tournament">
+          <i class='bx bx-git-merge'></i> 抽签对阵
+        </button>
+        <button class="nav-item" data-target="match">
+          <i class='bx bx-timer'></i> 实时记分
+        </button>
+        <button class="nav-item" data-target="history">
+          <i class='bx bx-history'></i> 赛程记录
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="reset-all-btn" class="danger-btn"><i class='bx bx-reset'></i> 重置所有数据</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <!-- 报名管理模块 -->
+      <section id="registration" class="view-section active">
+        <header class="section-header">
+          <h1>报名管理</h1>
+          <p>添加并管理参赛队伍，支持8支或16支队伍单败淘汰。</p>
+        </header>
+        <div class="registration-container">
+          <div class="add-team-card">
+            <h3>添加新球队</h3>
+            <form id="add-team-form">
+              <input type="text" id="team-name" placeholder="球队名称" required>
+              <button type="submit" class="primary-btn"><i class='bx bx-plus'></i> 添加</button>
+            </form>
+          </div>
+          <div class="team-list-card">
+            <div class="list-header">
+              <h3>已报名球队</h3>
+              <span class="team-count" id="team-count">0/16</span>
+            </div>
+            <ul id="team-list" class="team-list">
+              <!-- 动态加载球队 -->
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 抽签对阵模块 -->
+      <section id="tournament" class="view-section">
+        <header class="section-header">
+          <h1>抽签与对阵</h1>
+          <p>当前阶段比赛的随机抽签与对阵表生成。</p>
+        </header>
+        <div class="tournament-container">
+          <div class="action-bar">
+            <h3 id="current-round-title">第一轮（8进4）</h3>
+            <div style="display: flex; gap: 1rem;">
+              <button id="draw-lots-btn" class="primary-btn"><i class='bx bx-shuffle'></i> 随机抽签</button>
+              <button id="end-tournament-btn" class="danger-btn" style="width: auto; display: none;"><i class='bx bx-archive-in'></i> 结束并归档赛程</button>
+            </div>
+          </div>
+          <div class="matchups-grid" id="matchups-container">
+            <!-- 对阵卡片 -->
+            <div class="empty-state">
+              <i class='bx bx-box'></i>
+              <p>暂无对阵信息，请先进行抽签</p>
+            </div>
+          </div>
+          <!-- 历史轮次（新增） -->
+          <div id="draw-history-container" style="margin-top: 3rem;"></div>
+        </div>
+      </section>
+
+      <!-- 实时记分模块 -->
+      <section id="match" class="view-section">
+        <div class="scoreboard-container">
+          <div class="match-info-bar">
+            <span id="match-round-name">第一场</span>
+            <button id="back-to-tournament" class="secondary-btn"><i class='bx bx-arrow-back'></i> 返回对阵</button>
+          </div>
+          <div class="scoreboard-main">
+            <!-- 客队 -->
+            <div class="team-score-card away-team">
+              <h2 id="away-name" class="team-name">客队</h2>
+              <div class="score-display" id="away-score">00</div>
+              <div class="score-actions">
+                <button class="score-btn" data-team="away" data-points="1">+1</button>
+                <button class="score-btn" data-team="away" data-points="2">+2</button>
+                <button class="score-btn" data-team="away" data-points="3">+3</button>
+                <button class="score-btn danger" data-team="away" data-points="-1">-1</button>
+              </div>
+              <div class="stats-row">
+                <div class="stat-item">
+                  <span>犯规</span>
+                  <div class="stat-control">
+                    <button class="small-btn" id="away-foul-minus">-</button>
+                    <span id="away-fouls">0</span>
+                    <button class="small-btn" id="away-foul-plus">+</button>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <span>暂停</span>
+                  <div class="stat-control">
+                    <button class="small-btn" id="away-timeout-minus">-</button>
+                    <span id="away-timeouts">0</span>
+                    <button class="small-btn" id="away-timeout-plus">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 中间时钟区域 -->
+            <div class="center-clock-area">
+              <div class="period-display">
+                第 <span id="current-period">1</span> 节
+              </div>
+              <div class="main-clock" id="main-clock">10:00</div>
+              <div class="clock-controls">
+                <button id="start-stop-btn" class="primary-btn play-btn"><i class='bx bx-play'></i> 开始</button>
+                <button id="reset-clock-btn" class="secondary-btn"><i class='bx bx-reset'></i> 重置</button>
+              </div>
+              <button id="finish-match-btn" class="success-btn large-btn" style="margin-top: 2rem;"><i class='bx bx-check-circle'></i> 结束并提交比赛</button>
+            </div>
+
+            <!-- 主队 -->
+            <div class="team-score-card home-team">
+              <h2 id="home-name" class="team-name">主队</h2>
+              <div class="score-display" id="home-score">00</div>
+              <div class="score-actions">
+                <button class="score-btn" data-team="home" data-points="1">+1</button>
+                <button class="score-btn" data-team="home" data-points="2">+2</button>
+                <button class="score-btn" data-team="home" data-points="3">+3</button>
+                <button class="score-btn danger" data-team="home" data-points="-1">-1</button>
+              </div>
+              <div class="stats-row">
+                <div class="stat-item">
+                  <span>犯规</span>
+                  <div class="stat-control">
+                    <button class="small-btn" id="home-foul-minus">-</button>
+                    <span id="home-fouls">0</span>
+                    <button class="small-btn" id="home-foul-plus">+</button>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <span>暂停</span>
+                  <div class="stat-control">
+                    <button class="small-btn" id="home-timeout-minus">-</button>
+                    <span id="home-timeouts">0</span>
+                    <button class="small-btn" id="home-timeout-plus">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 赛程记录模块 -->
+      <section id="history" class="view-section">
+        <header class="section-header">
+          <h1>赛程记录</h1>
+          <p>历史比分与晋级结果回顾。</p>
+        </header>
+        <div class="history-container">
+          <div id="bracket-container" class="bracket-wrapper">
+             <!-- 动态渲染淘汰赛树状图或者列表 -->
+             <div class="empty-state">
+              <i class='bx bx-history'></i>
+              <p>暂无比赛记录</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
