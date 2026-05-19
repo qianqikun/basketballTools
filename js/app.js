@@ -2,11 +2,13 @@ import { RegistrationModule } from './modules/registration.js';
 import { DrawModule } from './modules/draw.js';
 import { MatchModule } from './modules/match.js';
 import { HistoryModule } from './modules/history.js';
+import { LiveModule } from './modules/live.js';
 
 class App {
   constructor() {
     this.store = { teams: [], tournament: null, pastTournaments: [] };
     this.modules = {};
+    this.ws = null;
     
     // 启动异步初始化过程
     this.bootstrap();
@@ -15,6 +17,7 @@ class App {
   async bootstrap() {
     await this.loadStore();
     this.init();
+    this.connectWebSocket();
   }
 
   async loadStore() {
@@ -51,12 +54,62 @@ class App {
     }
   }
 
+  // 建立 WebSocket 实时同步长连接
+  connectWebSocket() {
+    try {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}`;
+      console.log(`🔌 正在连接实时比分同步服务: ${wsUrl}`);
+      
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        console.log('📡 实时比分同步连接已建立');
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'STATE_SYNC') {
+            if (this.modules.live) {
+              this.modules.live.onStateSync(message.payload);
+            }
+          }
+        } catch (e) {
+          console.error('解析服务器同步包失败:', e);
+        }
+      };
+
+      this.ws.onerror = (err) => {
+        console.error('实时同步通信发生错误:', err);
+      };
+
+      this.ws.onclose = () => {
+        console.warn('实时同步连接已断开，3秒后自动尝试重连...');
+        setTimeout(() => this.connectWebSocket(), 3000);
+      };
+    } catch (e) {
+      console.error('初始化 WebSocket 连接失败，3秒后尝试重连...', e);
+      setTimeout(() => this.connectWebSocket(), 3000);
+    }
+  }
+
+  // 发送消息到实时比分同步服务器
+  sendWsMessage(type, payload) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type, payload }));
+    } else {
+      console.warn('同步连接处于不可用状态，消息丢失:', type);
+    }
+  }
+
   init() {
     // 实例化模块
     this.modules.registration = new RegistrationModule(this);
     this.modules.draw = new DrawModule(this);
     this.modules.match = new MatchModule(this);
     this.modules.history = new HistoryModule(this);
+    this.modules.live = new LiveModule(this);
 
     // 绑定导航事件
     const navMenu = document.querySelector('.nav-menu');
@@ -88,6 +141,7 @@ class App {
         sessionStorage.removeItem('hoops_manager_current_view');
         sessionStorage.removeItem('hoops_manager_active_match_id');
         sessionStorage.removeItem('hoops_manager_live_match');
+        this.sendWsMessage('MATCH_END', {}); // 重置时清除同步比分
         setTimeout(() => location.reload(), 300); // 稍等片刻等待请求发送后刷新
       }
     });

@@ -32,6 +32,9 @@
         <button class="nav-item" data-target="history">
           <i class='bx bx-history'></i> 赛程记录
         </button>
+        <button class="nav-item" data-target="live">
+          <i class='bx bx-broadcast'></i> 实时观战
+        </button>
       </nav>
       <div class="sidebar-footer">
         <button id="reset-all-btn" class="danger-btn"><i class='bx bx-reset'></i> 重置所有数据</button>
@@ -190,6 +193,23 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- 实时观战（大屏）模块 -->
+      <section id="live" class="view-section">
+        <header class="section-header">
+          <h1>📡 实时观战</h1>
+          <p>多端实时同步的现场大屏幕比分与计时直播。</p>
+        </header>
+
+        <!-- 观战无比赛时的空状态 -->
+        <div id="live-empty-state" class="empty-state">
+          <i class='bx bx-broadcast' style="animation: blink 2s infinite; color: var(--primary-color);"></i>
+          <h3>暂无进行中的比赛</h3>
+          <p>当前没有正在进行的比赛，正在等待裁判开哨...</p>
+        </div>
+        <!-- 观战大屏卡片容器（支持多场并行） -->
+        <div id="live-active-matches" class="live-matches-container"></div>
       </section>
 
     </main>

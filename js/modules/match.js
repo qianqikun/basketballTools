@@ -71,6 +71,36 @@ export class MatchModule {
     this.finishBtn.addEventListener('click', () => this.finishMatch());
   }
 
+  // 辅助方法：向 WebSocket 发送初始开赛消息，拉起所有观众端大屏
+  sendStartSignal() {
+    if (!this.currentMatch) return;
+    const periodEl = document.getElementById('current-period');
+    const period = periodEl ? parseInt(periodEl.textContent) : 1;
+    this.app.sendWsMessage('MATCH_START', {
+      matchId: this.currentMatch.id,
+      roundName: this.currentMatch.roundName || '',
+      home: { name: this.teams.home.el.name.textContent, score: this.teams.home.score, fouls: this.teams.home.fouls, timeouts: this.teams.home.timeouts },
+      away: { name: this.teams.away.el.name.textContent, score: this.teams.away.score, fouls: this.teams.away.fouls, timeouts: this.teams.away.timeouts },
+      timeRemaining: this.timeRemaining,
+      currentPeriod: period
+    });
+  }
+
+  // 辅助方法：在关键操作或秒表运行中，将当前状态实时推送到 WS 服务器
+  syncToWs() {
+    if (!this.currentMatch) return;
+    const periodEl = document.getElementById('current-period');
+    const period = periodEl ? parseInt(periodEl.textContent) : 1;
+    this.app.sendWsMessage('MATCH_UPDATE', {
+      matchId: this.currentMatch.id,
+      home: { name: this.teams.home.el.name.textContent, score: this.teams.home.score, fouls: this.teams.home.fouls, timeouts: this.teams.home.timeouts },
+      away: { name: this.teams.away.el.name.textContent, score: this.teams.away.score, fouls: this.teams.away.fouls, timeouts: this.teams.away.timeouts },
+      timeRemaining: this.timeRemaining,
+      currentPeriod: period,
+      isRunning: this.isRunning
+    });
+  }
+
   loadMatch(match, isRestore = false) {
     this.currentMatch = match;
     this.roundName.textContent = `当前对阵`;
@@ -97,6 +127,7 @@ export class MatchModule {
           this.timeRemaining = liveData.timeRemaining;
           this.renderClock();
           this.updateUI();
+          this.sendStartSignal(); // 重新向 WS 宣告比赛开启状态以拉起新进入者的观战面板
           return;
         } catch (e) {
           console.error("恢复比赛数据失败，将重新初始化:", e);
@@ -116,6 +147,9 @@ export class MatchModule {
     this.resetClock();
     this.updateUI();
     this.saveLiveState();
+    
+    // 首次开赛，推送开哨信号
+    this.sendStartSignal();
   }
 
   saveLiveState() {
@@ -142,6 +176,7 @@ export class MatchModule {
     if (this.teams[team].score < 0) this.teams[team].score = 0;
     this.updateUI();
     this.saveLiveState();
+    this.syncToWs(); // 发生比分变动，立刻同步
   }
 
   updateStat(team, stat, value) {
@@ -149,6 +184,7 @@ export class MatchModule {
     if (this.teams[team][stat] < 0) this.teams[team][stat] = 0;
     this.updateUI();
     this.saveLiveState();
+    this.syncToWs(); // 发生犯规/暂停变动，立刻同步
   }
 
   updateUI() {
@@ -174,10 +210,21 @@ export class MatchModule {
     this.startStopBtn.innerHTML = "<i class='bx bx-pause'></i> 暂停";
     this.startStopBtn.style.backgroundColor = 'var(--danger)';
     
+    // 启动秒表立刻同步一次
+    this.syncToWs();
+
+    let syncCounter = 0;
     this.timer = setInterval(() => {
       if (this.timeRemaining > 0) {
         this.timeRemaining--;
         this.renderClock();
+        
+        // 运行中每 2 秒对齐一次 WS，减轻服务器压力又保持高度精确
+        syncCounter++;
+        if (syncCounter >= 2) {
+          this.syncToWs();
+          syncCounter = 0;
+        }
       } else {
         this.stopClock();
         alert('时间到！');
@@ -190,12 +237,16 @@ export class MatchModule {
     clearInterval(this.timer);
     this.startStopBtn.innerHTML = "<i class='bx bx-play'></i> 开始";
     this.startStopBtn.style.backgroundColor = '';
+    
+    // 暂停秒表立刻同步一次
+    this.syncToWs();
   }
 
   resetClock() {
     this.stopClock();
     this.timeRemaining = 10 * 60;
     this.renderClock();
+    this.syncToWs(); // 重置秒表立刻同步一次
   }
 
   renderClock() {
@@ -254,6 +305,9 @@ export class MatchModule {
           t.currentMatches = []; // 清空当前对阵，等待再次抽签
           this.app.saveStore('tournament', t);
         }
+
+        // 比赛正式结束，向 WS 服务器发送广播清除实时看板
+        this.app.sendWsMessage('MATCH_END', { matchId: this.currentMatch.id });
 
         alert(`比赛结束！胜者是：${match.winner.name}`);
         this.app.switchView('tournament');

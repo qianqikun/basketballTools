@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./db');
+const http = require('http');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = 3000;
@@ -38,8 +40,99 @@ app.post('/api/store', async (req, res) => {
   }
 });
 
+// 创建共享端口的 HTTP Server 和 WebSocket Server
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// 内存中维护的当前进行中的比赛状态字典，key 为 matchId
+let globalLiveMatches = {};
+
+// 广播状态至所有客户端
+const broadcast = (data) => {
+  const messageStr = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(messageStr);
+    }
+  });
+};
+
+wss.on('connection', (ws) => {
+  console.log('📡 新客户端已连接 WebSocket');
+
+  // 当新客户端连接时，立刻同步当前的进行中比赛列表给它
+  ws.send(JSON.stringify({
+    type: 'STATE_SYNC',
+    payload: globalLiveMatches
+  }));
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      switch (data.type) {
+        case 'MATCH_START':
+          if (data.payload && data.payload.matchId) {
+            // 记分员启动比赛，初始化该场实时比赛状态
+            globalLiveMatches[data.payload.matchId] = {
+              matchId: data.payload.matchId,
+              roundName: data.payload.roundName || '',
+              home: data.payload.home,
+              away: data.payload.away,
+              timeRemaining: data.payload.timeRemaining || 600,
+              currentPeriod: data.payload.currentPeriod || 1,
+              isRunning: false,
+              lastUpdated: Date.now()
+            };
+            broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+            console.log(`🏀 比赛实时同步已开启：[${data.payload.matchId}] ${data.payload.home.name} vs ${data.payload.away.name}`);
+          }
+          break;
+
+        case 'MATCH_UPDATE':
+          if (data.payload && data.payload.matchId) {
+            const mid = data.payload.matchId;
+            if (globalLiveMatches[mid]) {
+              globalLiveMatches[mid] = {
+                ...globalLiveMatches[mid],
+                ...data.payload,
+                lastUpdated: Date.now()
+              };
+              broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+            }
+          }
+          break;
+
+        case 'MATCH_END':
+          if (data.payload && data.payload.matchId) {
+            const mid = data.payload.matchId;
+            console.log(`🏆 比赛 [${mid}] 已结束并提交，清除其实时广播状态`);
+            delete globalLiveMatches[mid];
+            broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+          } else {
+            // 回退处理：如果没有发 matchId，则清空所有（兼容老逻辑）
+            console.log('🏆 收到未指定ID的比赛结束信号，清除所有进行中比赛');
+            globalLiveMatches = {};
+            broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+          }
+          break;
+
+        case 'GET_STATE':
+          // 客户端手动请求状态
+          ws.send(JSON.stringify({ type: 'STATE_SYNC', payload: globalLiveMatches }));
+          break;
+      }
+    } catch (err) {
+      console.error('解析 WebSocket 消息失败:', err);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('🔌 客户端断开 WebSocket 连接');
+  });
+});
+
 // 启动服务器
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`=================================`);
   console.log(`🚀 篮球比赛工具后端服务已启动!`);
   console.log(`👉 浏览器访问: http://localhost:${PORT}`);
