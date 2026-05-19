@@ -62,44 +62,60 @@ export class LiveModule {
         <span class="live-status-badge"><span class="pulse-dot"></span> 直播中</span>
       </div>
 
-      <div class="live-scoreboard-body">
-        <!-- 客队 -->
-        <div class="live-team-card away">
-          <h2 class="live-team-name">客队</h2>
-          <div class="live-score-value">00</div>
-          <div class="live-stats-bar">
-            <div class="live-stat-box">
-              <span class="label">犯规</span>
-              <span class="value">0</span>
+      <!-- 内容包裹容器 (用于支持有直播时的垂直上下布局) -->
+      <div class="live-scoreboard-content">
+        <div class="live-scoreboard-body">
+          <!-- 客队 -->
+          <div class="live-team-card away">
+            <h2 class="live-team-name">客队</h2>
+            <div class="live-score-value">00</div>
+            <div class="live-stats-bar">
+              <div class="live-stat-box">
+                <span class="label">犯规</span>
+                <span class="value">0</span>
+              </div>
+              <div class="live-stat-box">
+                <span class="label">暂停</span>
+                <span class="value">0</span>
+              </div>
             </div>
-            <div class="live-stat-box">
-              <span class="label">暂停</span>
-              <span class="value">0</span>
+          </div>
+
+          <!-- 中央计时区域 -->
+          <div class="live-center-col live-center-time">
+            <div class="live-period">第 1 节</div>
+            <div class="live-timer-clock">10:00</div>
+            <div class="live-timer-state">已暂停</div>
+          </div>
+
+          <!-- 主队 -->
+          <div class="live-team-card home">
+            <h2 class="live-team-name">主队</h2>
+            <div class="live-score-value">00</div>
+            <div class="live-stats-bar">
+              <div class="live-stat-box">
+                <span class="label">犯规</span>
+                <span class="value">0</span>
+              </div>
+              <div class="live-stat-box">
+                <span class="label">暂停</span>
+                <span class="value">0</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 中央计时区域 -->
-        <div class="live-center-time">
-          <div class="live-period">第 1 节</div>
-          <div class="live-timer-clock">10:00</div>
-          <div class="live-timer-state">已暂停</div>
-        </div>
-
-        <!-- 主队 -->
-        <div class="live-team-card home">
-          <h2 class="live-team-name">主队</h2>
-          <div class="live-score-value">00</div>
-          <div class="live-stats-bar">
-            <div class="live-stat-box">
-              <span class="label">犯规</span>
-              <span class="value">0</span>
-            </div>
-            <div class="live-stat-box">
-              <span class="label">暂停</span>
-              <span class="value">0</span>
-            </div>
+        <!-- 视频播放区域 (新增) -->
+        <div class="live-video-wrapper" style="display: none;">
+          <!-- 全屏按钮 -->
+          <button class="fullscreen-toggle-btn" title="网页全屏/退出"><i class='bx bx-fullscreen'></i></button>
+          <!-- 视频拉流状态占位 -->
+          <div class="video-overlay">
+            <i class='bx bx-loader-alt bx-spin'></i>
+            <span>正在连接极速视频信号...</span>
           </div>
+          <!-- 真正的 HTML5 Video 播放器 -->
+          <video muted playsinline webkit-playsinline></video>
         </div>
       </div>
     `;
@@ -111,6 +127,11 @@ export class LiveModule {
       tickerMsg: cardEl.querySelector('.live-ticker-message'),
       roundName: cardEl.querySelector('.live-round-tag'),
       
+      videoWrapper: cardEl.querySelector('.live-video-wrapper'),
+      videoOverlay: cardEl.querySelector('.video-overlay'),
+      videoElement: cardEl.querySelector('.live-video-wrapper video'),
+      fullscreenBtn: cardEl.querySelector('.fullscreen-toggle-btn'),
+
       awayName: body.querySelector('.live-team-card.away .live-team-name'),
       awayScore: body.querySelector('.live-team-card.away .live-score-value'),
       awayFouls: body.querySelectorAll('.live-team-card.away .live-stat-box .value')[0],
@@ -133,12 +154,39 @@ export class LiveModule {
       timeRemaining: initialData.timeRemaining || 600,
       isRunning: false,
       
+      // 视频相关配置
+      hasVideo: false,
+      videoStreamUrl: '',
+      player: null,
+
       // 上次更新的比分缓存，做跑马灯高光事件对比
       home: { score: initialData.home.score, fouls: initialData.home.fouls, timeouts: initialData.home.timeouts },
       away: { score: initialData.away.score, fouls: initialData.away.fouls, timeouts: initialData.away.timeouts },
       currentPeriod: initialData.currentPeriod || 1,
       elements
     };
+
+    // 绑定全屏切换按钮事件
+    elements.fullscreenBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleFullscreen(matchId);
+    });
+
+    // 监听全屏变动事件以支持 Esc / 原生方式退出时类名和状态还原
+    const handleFsChange = () => {
+      const isFs = document.fullscreenElement === cardEl || 
+                   document.webkitFullscreenElement === cardEl;
+      const icon = elements.fullscreenBtn.querySelector('i');
+      if (isFs) {
+        cardEl.classList.add('live-fullscreen-mode');
+        if (icon) icon.className = 'bx bx-exit-fullscreen';
+      } else {
+        cardEl.classList.remove('live-fullscreen-mode');
+        if (icon) icon.className = 'bx bx-fullscreen';
+      }
+    };
+    cardEl.addEventListener('fullscreenchange', handleFsChange);
+    cardEl.addEventListener('webkitfullscreenchange', handleFsChange);
 
     // 插入到大屏视图容器中
     this.container.appendChild(cardEl);
@@ -190,7 +238,34 @@ export class LiveModule {
     card.away.timeouts = data.away.timeouts;
     card.currentPeriod = data.currentPeriod || 1;
 
-    // 5. 独立时钟步进校准
+    // 5. 现场视频直播流控制 (新增)
+    const hasVideo = !!data.hasVideo;
+    const videoStreamUrl = data.videoStreamUrl || '';
+
+    if (hasVideo) {
+      card.elements.videoWrapper.style.display = 'block';
+      card.dom.classList.add('has-live');
+      
+      // 当播放器未初始化，或者拉流 URL 改变了，重新初始化播放器
+      if (!card.player || card.videoStreamUrl !== videoStreamUrl) {
+        this.initVideoPlayer(matchId, videoStreamUrl);
+      }
+    } else {
+      card.elements.videoWrapper.style.display = 'none';
+      card.dom.classList.remove('has-live');
+      if (card.player) {
+        console.log(`🔌 关闭比赛 [${matchId}] 的 WebRTC 直播拉流`);
+        card.player.close();
+        card.player = null;
+      }
+      card.elements.videoElement.src = '';
+      card.elements.videoElement.srcObject = null;
+    }
+
+    card.hasVideo = hasVideo;
+    card.videoStreamUrl = videoStreamUrl;
+
+    // 6. 独立时钟步进校准
     this.syncClock(matchId, data.timeRemaining, data.isRunning);
   }
 
@@ -318,6 +393,15 @@ export class LiveModule {
     const card = this.activeCards[matchId];
     if (card) {
       this.stopLocalClock(matchId);
+      if (card.player) {
+        console.log(`🔌 销毁比赛卡片 [${matchId}]，关闭 WebRTC 播放器`);
+        try {
+          card.player.close();
+        } catch (e) {
+          console.error('关闭播放器失败:', e);
+        }
+        card.player = null;
+      }
       if (card.dom) {
         card.dom.remove();
       }
@@ -330,5 +414,105 @@ export class LiveModule {
     Object.keys(this.activeCards).forEach(matchId => {
       this.destroyCard(matchId);
     });
+  }
+
+  // 初始化 SRS SdpPlayer 播放器
+  initVideoPlayer(matchId, videoStreamUrl) {
+    const card = this.activeCards[matchId];
+    if (!card) return;
+
+    if (card.player) {
+      try {
+        card.player.close();
+      } catch (e) {
+        console.error('关闭原有播放器失败:', e);
+      }
+      card.player = null;
+    }
+
+    console.log(`🎬 准备拉取比赛 [${matchId}] 的 WebRTC 极速视频流: ${videoStreamUrl}`);
+    
+    // 显示状态遮罩
+    card.elements.videoOverlay.classList.remove('hidden');
+    card.elements.videoOverlay.querySelector('span').textContent = '正在连接极速视频信号...';
+
+    // 实例化官方 SRS WebRTC SrsRtcPlayerAsync
+    if (typeof SrsRtcPlayerAsync !== 'undefined') {
+      try {
+        const player = new SrsRtcPlayerAsync();
+        card.player = player;
+
+        // 绑定播放核心逻辑
+        player.play(videoStreamUrl).then(() => {
+          console.log(`✅ 比赛 [${matchId}] WebRTC 握手成功，开始播放`);
+          card.elements.videoOverlay.classList.add('hidden');
+          
+          // 自动播放并静音
+          card.elements.videoElement.muted = true;
+          card.elements.videoElement.srcObject = player.stream;
+          card.elements.videoElement.play().catch(e => {
+            console.warn('浏览器拦截了自动播放，需要用户交互唤醒:', e);
+            // 改变状态遮罩，支持点击恢复播放
+            card.elements.videoOverlay.classList.remove('hidden');
+            card.elements.videoOverlay.querySelector('span').textContent = '点击画面开启直播信号';
+            card.elements.videoOverlay.style.cursor = 'pointer';
+            
+            const clickToPlay = () => {
+              card.elements.videoElement.play();
+              card.elements.videoOverlay.classList.add('hidden');
+              card.elements.videoOverlay.style.cursor = '';
+              card.elements.videoOverlay.removeEventListener('click', clickToPlay);
+            };
+            card.elements.videoOverlay.addEventListener('click', clickToPlay);
+          });
+        }).catch(err => {
+          console.error(`❌ 比赛 [${matchId}] WebRTC 播放信令握手失败:`, err);
+          card.elements.videoOverlay.classList.remove('hidden');
+          card.elements.videoOverlay.querySelector('span').textContent = '视频信号握手失败，请确认推流端是否已开播';
+        });
+      } catch (err) {
+        console.error('初始化 SrsRtcPlayerAsync 发生错误:', err);
+        card.elements.videoOverlay.classList.remove('hidden');
+        let tip = '流媒体播放器初始化失败';
+        if (err && (err.name === 'WebRTCNotSupported' || (err.message && err.message.indexOf('RTCPeerConnection') >= 0))) {
+          tip = '非安全域名禁用了 WebRTC 极速拉流，请用 localhost 或 HTTPS 访问大屏';
+        }
+        card.elements.videoOverlay.querySelector('span').textContent = tip;
+      }
+    } else {
+      console.error('SrsRtcPlayerAsync SDK 未定义，请检查 script 引入！');
+      card.elements.videoOverlay.classList.remove('hidden');
+      card.elements.videoOverlay.querySelector('span').textContent = '流媒体 SDK 缺失，无法拉流';
+    }
+  }
+
+  // 网页全屏切换
+  toggleFullscreen(matchId) {
+    const card = this.activeCards[matchId];
+    if (!card) return;
+
+    const cardDom = card.dom;
+    const isFullscreen = document.fullscreenElement === cardDom || 
+                         document.webkitFullscreenElement === cardDom;
+
+    if (!isFullscreen) {
+      // 开启全屏
+      if (cardDom.requestFullscreen) {
+        cardDom.requestFullscreen();
+      } else if (cardDom.webkitRequestFullscreen) {
+        cardDom.webkitRequestFullscreen();
+      } else if (cardDom.msRequestFullscreen) {
+        cardDom.msRequestFullscreen();
+      }
+    } else {
+      // 退出全屏
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
   }
 }

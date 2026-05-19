@@ -1,5 +1,4 @@
-# 使用官方 Node.js 20 基础镜像 (使用已验证的稳定国内加速代理，绕过 auth.docker.io DNS 污染)
-FROM docker.1ms.run/library/node:20-slim    
+FROM hub.rat.dev/library/node:20-slim    
 
 # 安装 SQLite3 构建所需的底层依赖工具（作为编译回退保障，同时清理缓存）
 RUN apt-get update && apt-get install -y \

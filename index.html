@@ -101,6 +101,45 @@
             <span id="match-round-name">第一场</span>
             <button id="back-to-tournament" class="secondary-btn"><i class='bx bx-arrow-back'></i> 返回对阵</button>
           </div>
+
+          <!-- 视频直播配置折叠面板 (新增) -->
+          <div class="live-settings-accordion">
+            <button class="accordion-header" id="live-settings-toggle-btn">
+              <i class='bx bx-video'></i> <span>现场视频直播设置</span> <i class='bx bx-chevron-down toggle-icon'></i>
+            </button>
+            <div class="accordion-content" id="live-settings-content">
+              <div class="settings-row">
+                <label class="switch-container">
+                  <input type="checkbox" id="live-video-enable">
+                  <span class="switch-slider"></span>
+                  开启视频直播
+                </label>
+                <div class="input-group" id="live-url-input-group" style="display: none; margin-left: 2rem; flex: 1;">
+                  <input type="text" id="live-video-url" placeholder="自定义 WebRTC 拉流地址 (如 webrtc://[Host]/live/show，留空则自动生成)">
+                </div>
+              </div>
+              <!-- 推流助手引导指南 -->
+              <div class="live-stream-guide" id="live-stream-guide" style="display: none;">
+                <div class="guide-item">
+                  <span class="guide-label">RTMP 推流地址:</span>
+                  <div class="copy-box">
+                    <input type="text" id="live-push-url-display" readonly>
+                    <button id="copy-push-url-btn" class="icon-btn" title="复制推流地址" type="button"><i class='bx bx-copy'></i></button>
+                  </div>
+                </div>
+                <div class="guide-item qr-guide-item">
+                  <span class="guide-label">iPhone 扫码快捷推流 (用自带相机扫描):</span>
+                  <div class="qr-code-wrapper">
+                    <div id="live-push-qr"></div>
+                  </div>
+                </div>
+                <div class="guide-note">
+                  <i class='bx bx-info-circle'></i>
+                  <span>请使用 Larix Broadcaster 等推流软件。若使用 iPhone，直接用自带相机扫描上方二维码，在弹出的提示中点击“在 Larix 中打开”即可一键导入推流配置并开始推流！</span>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="scoreboard-main">
             <!-- 客队 -->
             <div class="team-score-card away-team">
@@ -215,6 +254,9 @@
     </main>
   </div>
 
+  <!-- 视频直播 WebRTC 与二维码 SDK 引入 -->
+  <script src="js/lib/srs.sdk.js"></script>
+  <script src="js/lib/qrcode.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

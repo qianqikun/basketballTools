@@ -81,6 +81,8 @@ wss.on('connection', (ws) => {
               timeRemaining: data.payload.timeRemaining || 600,
               currentPeriod: data.payload.currentPeriod || 1,
               isRunning: false,
+              hasVideo: data.payload.hasVideo || false,
+              videoStreamUrl: data.payload.videoStreamUrl || '',
               lastUpdated: Date.now()
             };
             broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });

@@ -21,6 +21,18 @@ export class MatchModule {
     this.clockEl = document.getElementById('main-clock');
     this.startStopBtn = document.getElementById('start-stop-btn');
     this.resetClockBtn = document.getElementById('reset-clock-btn');
+
+    // 视频直播后台控制 DOM
+    this.liveToggleBtn = document.getElementById('live-settings-toggle-btn');
+    this.liveSettingsContent = document.getElementById('live-settings-content');
+    this.liveVideoEnable = document.getElementById('live-video-enable');
+    this.liveUrlInputGroup = document.getElementById('live-url-input-group');
+    this.liveVideoUrl = document.getElementById('live-video-url');
+    this.liveStreamGuide = document.getElementById('live-stream-guide');
+    this.livePushUrlDisplay = document.getElementById('live-push-url-display');
+    this.copyPushUrlBtn = document.getElementById('copy-push-url-btn');
+    this.livePushQr = document.getElementById('live-push-qr');
+    this.qrInstance = null;
     
     this.bindEvents();
   }
@@ -69,6 +81,93 @@ export class MatchModule {
 
     // 结束比赛
     this.finishBtn.addEventListener('click', () => this.finishMatch());
+
+    // 折叠设置面板事件
+    if (this.liveToggleBtn) {
+      this.liveToggleBtn.addEventListener('click', () => {
+        this.liveToggleBtn.classList.toggle('active');
+        this.liveSettingsContent.classList.toggle('show');
+      });
+    }
+
+    // 启用视频直播开关切换事件
+    if (this.liveVideoEnable) {
+      this.liveVideoEnable.addEventListener('change', () => {
+        this.handleLiveToggle();
+      });
+    }
+
+    // 自定义拉流链接输入事件
+    if (this.liveVideoUrl) {
+      this.liveVideoUrl.addEventListener('input', () => {
+        this.saveLiveState();
+        this.syncToWs();
+      });
+    }
+
+    // 复制推流链接
+    if (this.copyPushUrlBtn) {
+      this.copyPushUrlBtn.addEventListener('click', () => {
+        const pushUrl = this.livePushUrlDisplay.value;
+        if (pushUrl) {
+          navigator.clipboard.writeText(pushUrl).then(() => {
+            alert('推流地址已复制到剪贴板，请在推流软件中粘贴使用！');
+          }).catch(err => {
+            console.error('无法复制:', err);
+            // 兜底选中
+            this.livePushUrlDisplay.select();
+            try {
+              document.execCommand('copy');
+              alert('推流地址已复制到剪贴板！');
+            } catch (copyErr) {
+              alert('自动复制失败，请手动选择并复制推流框中的地址！');
+            }
+          });
+        }
+      });
+    }
+  }
+
+  handleLiveToggle() {
+    const enabled = this.liveVideoEnable.checked;
+    if (enabled) {
+      this.liveUrlInputGroup.style.display = 'block';
+      this.liveStreamGuide.style.display = 'flex';
+      this.updatePushGuide();
+    } else {
+      this.liveUrlInputGroup.style.display = 'none';
+      this.liveStreamGuide.style.display = 'none';
+    }
+    this.saveLiveState();
+    this.syncToWs();
+  }
+
+  updatePushGuide() {
+    if (!this.currentMatch) return;
+    const hostname = window.location.hostname;
+    
+    // 生成推流地址
+    const pushUrl = `rtmp://${hostname}:1935/live/show_${this.currentMatch.id}`;
+    this.livePushUrlDisplay.value = pushUrl;
+
+    // 渲染 iOS/Larix 扫码二维码：使用 larix://[rtmp-url] 协议快捷拉起配置
+    const larixUrl = pushUrl.replace('rtmp://', 'larix://');
+
+    this.livePushQr.innerHTML = '';
+    if (typeof QRCode !== 'undefined') {
+      try {
+        new QRCode(this.livePushQr, {
+          text: larixUrl,
+          width: 120,
+          height: 120,
+          colorDark: '#0f172a',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (err) {
+        console.error('生成推流二维码失败:', err);
+      }
+    }
   }
 
   // 辅助方法：向 WebSocket 发送初始开赛消息，拉起所有观众端大屏
@@ -76,13 +175,22 @@ export class MatchModule {
     if (!this.currentMatch) return;
     const periodEl = document.getElementById('current-period');
     const period = periodEl ? parseInt(periodEl.textContent) : 1;
+    
+    const hasVideo = this.liveVideoEnable ? this.liveVideoEnable.checked : false;
+    let videoStreamUrl = this.liveVideoUrl ? this.liveVideoUrl.value.trim() : '';
+    if (hasVideo && !videoStreamUrl) {
+      videoStreamUrl = `webrtc://${window.location.hostname}/live/show_${this.currentMatch.id}`;
+    }
+
     this.app.sendWsMessage('MATCH_START', {
       matchId: this.currentMatch.id,
       roundName: this.currentMatch.roundName || '',
       home: { name: this.teams.home.el.name.textContent, score: this.teams.home.score, fouls: this.teams.home.fouls, timeouts: this.teams.home.timeouts },
       away: { name: this.teams.away.el.name.textContent, score: this.teams.away.score, fouls: this.teams.away.fouls, timeouts: this.teams.away.timeouts },
       timeRemaining: this.timeRemaining,
-      currentPeriod: period
+      currentPeriod: period,
+      hasVideo,
+      videoStreamUrl
     });
   }
 
@@ -91,13 +199,22 @@ export class MatchModule {
     if (!this.currentMatch) return;
     const periodEl = document.getElementById('current-period');
     const period = periodEl ? parseInt(periodEl.textContent) : 1;
+
+    const hasVideo = this.liveVideoEnable ? this.liveVideoEnable.checked : false;
+    let videoStreamUrl = this.liveVideoUrl ? this.liveVideoUrl.value.trim() : '';
+    if (hasVideo && !videoStreamUrl) {
+      videoStreamUrl = `webrtc://${window.location.hostname}/live/show_${this.currentMatch.id}`;
+    }
+
     this.app.sendWsMessage('MATCH_UPDATE', {
       matchId: this.currentMatch.id,
       home: { name: this.teams.home.el.name.textContent, score: this.teams.home.score, fouls: this.teams.home.fouls, timeouts: this.teams.home.timeouts },
       away: { name: this.teams.away.el.name.textContent, score: this.teams.away.score, fouls: this.teams.away.fouls, timeouts: this.teams.away.timeouts },
       timeRemaining: this.timeRemaining,
       currentPeriod: period,
-      isRunning: this.isRunning
+      isRunning: this.isRunning,
+      hasVideo,
+      videoStreamUrl
     });
   }
 
@@ -125,6 +242,14 @@ export class MatchModule {
           this.teams.away.timeouts = liveData.away.timeouts;
           
           this.timeRemaining = liveData.timeRemaining;
+
+          // 还原直播配置
+          if (this.liveVideoEnable) {
+            this.liveVideoEnable.checked = liveData.hasVideo || false;
+            this.liveVideoUrl.value = liveData.videoStreamUrl || '';
+            this.handleLiveToggle();
+          }
+
           this.renderClock();
           this.updateUI();
           this.sendStartSignal(); // 重新向 WS 宣告比赛开启状态以拉起新进入者的观战面板
@@ -144,6 +269,15 @@ export class MatchModule {
     this.teams.away.fouls = 0;
     this.teams.away.timeouts = 0;
 
+    // 重置并复位直播配置
+    if (this.liveVideoEnable) {
+      this.liveVideoEnable.checked = false;
+      this.liveVideoUrl.value = '';
+      if (this.liveToggleBtn) this.liveToggleBtn.classList.remove('active');
+      if (this.liveSettingsContent) this.liveSettingsContent.classList.remove('show');
+      this.handleLiveToggle();
+    }
+
     this.resetClock();
     this.updateUI();
     this.saveLiveState();
@@ -154,6 +288,8 @@ export class MatchModule {
 
   saveLiveState() {
     if (!this.currentMatch) return;
+    const hasVideo = this.liveVideoEnable ? this.liveVideoEnable.checked : false;
+    const videoStreamUrl = this.liveVideoUrl ? this.liveVideoUrl.value.trim() : '';
     const liveData = {
       matchId: this.currentMatch.id,
       home: {
@@ -166,7 +302,9 @@ export class MatchModule {
         fouls: this.teams.away.fouls,
         timeouts: this.teams.away.timeouts
       },
-      timeRemaining: this.timeRemaining
+      timeRemaining: this.timeRemaining,
+      hasVideo,
+      videoStreamUrl
     };
     sessionStorage.setItem('hoops_manager_live_match', JSON.stringify(liveData));
   }
