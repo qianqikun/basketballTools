@@ -110,21 +110,34 @@ export class MatchModule {
       this.copyPushUrlBtn.addEventListener('click', () => {
         const pushUrl = this.livePushUrlDisplay.value;
         if (pushUrl) {
-          navigator.clipboard.writeText(pushUrl).then(() => {
-            alert('推流地址已复制到剪贴板，请在推流软件中粘贴使用！');
-          }).catch(err => {
-            console.error('无法复制:', err);
-            // 兜底选中
-            this.livePushUrlDisplay.select();
-            try {
-              document.execCommand('copy');
-              alert('推流地址已复制到剪贴板！');
-            } catch (copyErr) {
-              alert('自动复制失败，请手动选择并复制推流框中的地址！');
-            }
-          });
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(pushUrl).then(() => {
+              alert('推流地址已复制到剪贴板，请在推流软件中粘贴使用！');
+            }).catch(err => {
+              this.fallbackCopyInput(this.livePushUrlDisplay);
+            });
+          } else {
+            this.fallbackCopyInput(this.livePushUrlDisplay);
+          }
         }
       });
+    }
+  }
+
+  // 非安全上下文（非localhost的HTTP环境）下的命令式兼容复制方法
+  fallbackCopyInput(inputEl) {
+    if (!inputEl) return;
+    inputEl.select();
+    inputEl.setSelectionRange(0, 99999); // 兼容移动端
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        alert('推流地址已复制到剪贴板，请在推流软件中粘贴使用！');
+      } else {
+        alert('自动复制失败，请手动选择并复制推流框中的地址！');
+      }
+    } catch (err) {
+      alert('自动复制失败，请手动选择并复制推流框中的地址！');
     }
   }
 
