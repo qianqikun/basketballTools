@@ -8,6 +8,20 @@ export class LiveModule {
     // 基础 DOM 容器
     this.emptyState = document.getElementById('live-empty-state');
     this.container = document.getElementById('live-active-matches');
+
+    // 监听物理返回键，用来自动退出网页模拟全屏或移动端伪横屏全屏
+    window.addEventListener('popstate', (e) => {
+      Object.keys(this.activeCards).forEach(matchId => {
+        const card = this.activeCards[matchId];
+        if (card) {
+          if (card.isMobileLandscapeFs) {
+            this.setMobileLandscapeFullscreen(matchId, false, false);
+          } else if (card.isPseudoFs) {
+            this.setPseudoFullscreen(matchId, false, false); // 第三个参数为 false，表示返回键触发，不需要再次后退历史栈
+          }
+        }
+      });
+    });
   }
 
   // 接收来自 app.js WebSocket 派发的多场比赛同步状态字典
@@ -198,6 +212,8 @@ export class LiveModule {
       timer: null,
       timeRemaining: initialData.timeRemaining || 600,
       isRunning: false,
+      isPseudoFs: false, // 模拟全屏状态标记
+      isMobileLandscapeFs: false, // 移动端伪横屏全屏标记
       
       // 视频相关配置
       hasVideo: false,
@@ -237,10 +253,18 @@ export class LiveModule {
       if (isFs) {
         cardEl.classList.add('live-fullscreen-mode');
         if (icon) icon.className = 'bx bx-exit-fullscreen';
+        // 原生全屏一旦生效，重置模拟全屏标记
+        const c = this.activeCards[matchId];
+        if (c) c.isPseudoFs = false;
       } else {
-        cardEl.classList.remove('live-fullscreen-mode');
-        if (icon) icon.className = 'bx bx-fullscreen';
+        const c = this.activeCards[matchId];
+        // 只有当没有开启网页模拟全屏时，才因原生退出事件而清除类名
+        if (c && !c.isPseudoFs) {
+          cardEl.classList.remove('live-fullscreen-mode');
+          if (icon) icon.className = 'bx bx-fullscreen';
+        }
       }
+      this.updateBodyFullscreenClass();
     };
     cardEl.addEventListener('fullscreenchange', handleFsChange);
     cardEl.addEventListener('webkitfullscreenchange', handleFsChange);
@@ -319,7 +343,9 @@ export class LiveModule {
       
       // 如果输入框没有聚焦，且当前是全屏模式，才进行 3 秒自动隐藏
       const isFs = document.fullscreenElement === cardEl || 
-                   document.webkitFullscreenElement === cardEl;
+                   document.webkitFullscreenElement === cardEl ||
+                   card.isPseudoFs ||
+                   card.isMobileLandscapeFs;
       const isInputFocused = document.activeElement === elements.danmakuInput;
 
       if (isFs && !isInputFocused) {
@@ -328,6 +354,7 @@ export class LiveModule {
         }, 3000);
       }
     };
+    card.resetIdleTimer = resetIdleTimer;
 
     // 全屏或鼠标在大屏面板内移动时重置闲置时钟
     cardEl.addEventListener('mousemove', resetIdleTimer);
@@ -581,6 +608,7 @@ export class LiveModule {
         card.dom.remove();
       }
       delete this.activeCards[matchId];
+      this.updateBodyFullscreenClass();
     }
   }
 
@@ -695,28 +723,208 @@ export class LiveModule {
     if (!card) return;
 
     const cardDom = card.dom;
-    const isFullscreen = document.fullscreenElement === cardDom || 
-                         document.webkitFullscreenElement === cardDom;
+    // 判断是否为移动端 (依据 UserAgent 或屏幕宽度)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
 
-    if (!isFullscreen) {
-      // 开启全屏
-      if (cardDom.requestFullscreen) {
-        cardDom.requestFullscreen();
-      } else if (cardDom.webkitRequestFullscreen) {
-        cardDom.webkitRequestFullscreen();
-      } else if (cardDom.msRequestFullscreen) {
-        cardDom.msRequestFullscreen();
+    if (isMobile) {
+      // 移动端一律采用方案B：伪横屏全屏，既不受iOS原生视频播放器限制，也能自动横屏展示比分和弹幕
+      const isMobileLandscapeFs = card.isMobileLandscapeFs;
+      if (isMobileLandscapeFs) {
+        this.setMobileLandscapeFullscreen(matchId, false);
+      } else {
+        this.setMobileLandscapeFullscreen(matchId, true);
+      }
+      return;
+    }
+
+    // 桌面端原有全屏逻辑保持不变
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    // 判断当前是否已经是某种全屏（原生或伪全屏）
+    const isNativeFs = document.fullscreenElement === cardDom || 
+                       document.webkitFullscreenElement === cardDom;
+    const isPseudoFs = card.isPseudoFs;
+
+    if (isNativeFs || isPseudoFs) {
+      // 退出全屏
+      if (isNativeFs) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      } else {
+        this.setPseudoFullscreen(matchId, false);
       }
     } else {
-      // 退出全屏
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
+      // 开启全屏
+      if (isIOS) {
+        // iOS 设备直接使用网页模拟全屏，避免拉起系统视频播放器导致弹幕和记分栏丢失
+        this.setPseudoFullscreen(matchId, true);
+      } else {
+        // 其它设备尝试原生全屏
+        try {
+          let promise = null;
+          if (cardDom.requestFullscreen) {
+            promise = cardDom.requestFullscreen();
+          } else if (cardDom.webkitRequestFullscreen) {
+            promise = cardDom.webkitRequestFullscreen();
+          } else if (cardDom.msRequestFullscreen) {
+            promise = cardDom.msRequestFullscreen();
+          }
+          
+          if (promise && typeof promise.catch === 'function') {
+            promise.catch(err => {
+              console.warn("原生全屏请求被拒绝，降级为网页全屏:", err);
+              this.setPseudoFullscreen(matchId, true);
+            });
+          } else if (!promise && !document.fullscreenElement && !document.webkitFullscreenElement) {
+            // 如果调用后没有返回 promise 且状态没有立刻改变，延迟 150ms 兜底检测是否开启原生全屏
+            setTimeout(() => {
+              if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                console.warn("检测到原生全屏未生效，降级为网页全屏");
+                this.setPseudoFullscreen(matchId, true);
+              }
+            }, 150);
+          }
+        } catch (e) {
+          console.warn("调用原生全屏 API 失败，降级为网页全屏:", e);
+          this.setPseudoFullscreen(matchId, true);
+        }
       }
     }
+  }
+
+  // 移动端 3D 旋转伪横屏全屏设置
+  setMobileLandscapeFullscreen(matchId, enable, updateHistory = true) {
+    const card = this.activeCards[matchId];
+    if (!card) return;
+
+    const cardDom = card.dom;
+    const icon = card.elements.fullscreenBtn.querySelector('i');
+
+    if (enable) {
+      card.isMobileLandscapeFs = true;
+      
+      // 尝试调用原生全屏隐藏移动端浏览器的导航栏和地址栏
+      try {
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        } else if (docEl.msRequestFullscreen) {
+          docEl.msRequestFullscreen();
+        }
+      } catch (e) {
+        console.warn("请求原生全屏隐藏导航栏失败:", e);
+      }
+
+      // 同时添加全屏样式与旋转类
+      cardDom.classList.add('live-fullscreen-mode', 'live-mobile-landscape-fullscreen');
+      if (icon) icon.className = 'bx bx-exit-fullscreen';
+      this.showTickerMessage(matchId, "🖥️ 已进入横屏全屏模式");
+
+      // 清空弹幕输入框内容
+      if (card.elements && card.elements.danmakuInput) {
+        card.elements.danmakuInput.value = '';
+      }
+
+      // 记录历史状态以便拦截物理返回键
+      if (updateHistory) {
+        window.history.pushState({ isMobileLandscapeFs: true, matchId: matchId }, '');
+      }
+
+      window.dispatchEvent(new Event('resize'));
+    } else {
+      card.isMobileLandscapeFs = false;
+      
+      // 尝试退出原生全屏恢复导航栏
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+          }
+        }
+      } catch (e) {
+        console.warn("退出原生全屏失败:", e);
+      }
+
+      cardDom.classList.remove('live-fullscreen-mode', 'live-mobile-landscape-fullscreen');
+      if (icon) icon.className = 'bx bx-fullscreen';
+      this.showTickerMessage(matchId, "🖥️ 已退出全屏模式");
+
+      if (card.elements && card.elements.danmakuInput) {
+        card.elements.danmakuInput.value = '';
+      }
+
+      // 如果是手动点击退出全屏，且当前 history 确实是伪横屏状态，则退一步清除历史记录
+      if (updateHistory && window.history.state && window.history.state.isMobileLandscapeFs) {
+        window.history.back();
+      }
+
+      window.dispatchEvent(new Event('resize'));
+    }
+
+    if (typeof card.resetIdleTimer === 'function') {
+      card.resetIdleTimer();
+    }
+    this.updateBodyFullscreenClass();
+  }
+
+  // 网页模拟全屏状态设置
+  setPseudoFullscreen(matchId, enable, updateHistory = true) {
+    const card = this.activeCards[matchId];
+    if (!card) return;
+
+    const cardDom = card.dom;
+    const icon = card.elements.fullscreenBtn.querySelector('i');
+    
+    if (enable) {
+      card.isPseudoFs = true;
+      cardDom.classList.add('live-fullscreen-mode');
+      if (icon) icon.className = 'bx bx-exit-fullscreen';
+      this.showTickerMessage(matchId, "🖥️ 已进入网页全屏模式");
+      
+      // 清空弹幕输入框内容
+      if (card.elements && card.elements.danmakuInput) {
+        card.elements.danmakuInput.value = '';
+      }
+      
+      // 记录历史状态以便拦截物理返回键
+      if (updateHistory) {
+        window.history.pushState({ isPseudoFs: true, matchId: matchId }, '');
+      }
+
+      window.dispatchEvent(new Event('resize'));
+    } else {
+      card.isPseudoFs = false;
+      cardDom.classList.remove('live-fullscreen-mode');
+      if (icon) icon.className = 'bx bx-fullscreen';
+      this.showTickerMessage(matchId, "🖥️ 已退出全屏模式");
+      
+      if (card.elements && card.elements.danmakuInput) {
+        card.elements.danmakuInput.value = '';
+      }
+
+      // 如果是手动点击退出全屏（而不是物理返回键触发），且当前 history 确实是全屏状态，则退一步清除历史记录
+      if (updateHistory && window.history.state && window.history.state.isPseudoFs) {
+        window.history.back();
+      }
+
+      window.dispatchEvent(new Event('resize'));
+    }
+
+    if (typeof card.resetIdleTimer === 'function') {
+      card.resetIdleTimer();
+    }
+    this.updateBodyFullscreenClass();
   }
 
   // 发送弹幕消息到 WebSocket 服务端
@@ -756,13 +964,22 @@ export class LiveModule {
     danmakuEl.textContent = text;
     danmakuEl.style.color = color || '#ffffff';
 
+    // 动态计算弹幕起始横向偏移（适配伪横屏旋转）
+    const containerWidth = card.elements.danmakuContainer.offsetWidth || 
+      (card.isMobileLandscapeFs ? window.innerHeight : window.innerWidth);
+    danmakuEl.style.setProperty('--danmaku-start', `${containerWidth}px`);
+
     // 弹幕轨道算法
-    const channelHeight = 38; // 每条轨道的纵向高度像素
-    const maxChannels = 8;    // 最多 8 条轨道
+    const isMobileLandscape = !!card.isMobileLandscapeFs;
+    const channelHeight = isMobileLandscape ? 26 : 38; // 每条轨道的纵向高度像素
+    const maxChannels = isMobileLandscape ? 6 : 8;    // 最多轨道数
     const now = Date.now();
 
     // 初始化轨道时间戳数组
     if (!card.lastChannelTimes) {
+      card.lastChannelTimes = new Array(maxChannels).fill(0);
+    } else if (card.lastChannelTimes.length !== maxChannels) {
+      // 当切换模式后，重置轨道时间戳数组长度
       card.lastChannelTimes = new Array(maxChannels).fill(0);
     }
 
@@ -795,7 +1012,7 @@ export class LiveModule {
     card.lastChannelTimes[selectedChannel] = now + 2500;
 
     // 设置弹幕样式与位置
-    const topPos = 20 + selectedChannel * channelHeight;
+    const topPos = (isMobileLandscape ? 10 : 20) + selectedChannel * channelHeight;
     danmakuEl.style.top = `${topPos}px`;
 
     // 插入容器
@@ -856,5 +1073,15 @@ export class LiveModule {
         this.renderDanmaku(matchId, text, randomColor);
       }, delay);
     });
+  }
+
+  // 动态更新 body 的全屏样式类
+  updateBodyFullscreenClass() {
+    const hasFs = document.querySelector('.live-fullscreen-mode') !== null;
+    if (hasFs) {
+      document.body.classList.add('has-fullscreen-panel');
+    } else {
+      document.body.classList.remove('has-fullscreen-panel');
+    }
   }
 }

@@ -1940,17 +1940,118 @@ input[type="text"]:focus {
   /* 解除普通的 flex 分栏，启用绝对定位 */
 }
 
-/* 全屏状态下解除包裹容器的 Flex 布局限制 */
-.live-scoreboard-panel.live-fullscreen-mode .live-scoreboard-content,
-.live-scoreboard-panel:fullscreen .live-scoreboard-content {
+/* 移动端 3D 旋转伪横屏全屏，旋转 90 度以高宽互换填充屏幕 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vh !important;  /* Fallback */
+  width: 100dvh !important; /* 动态响应地址栏高度，避免被底部导航栏盖住 */
+  height: 100vw !important; 
+  height: 100dvw !important;
+  max-width: 100vh !important;
+  max-width: 100dvh !important;
+  max-height: 100vw !important;
+  max-height: 100dvw !important;
+  transform: rotate(90deg) translateY(-100%) !important;
+  transform-origin: top left !important;
+  z-index: 99999 !important;
+  background: #000 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
   display: block !important;
+}
+
+/* 伪横屏全屏下的局部微调，释放屏幕空间 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-body {
+  top: 0.5rem !important;
+  right: 1.5rem !important;
+  width: 240px !important;
+  padding: 0.4rem 0.25rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .fullscreen-toggle-btn {
+  top: 0.5rem !important;
+  left: 0.5rem !important;
+  right: auto !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .volume-toggle-btn {
+  top: 0.5rem !important;
+  left: 3.5rem !important;
+  right: auto !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-danmaku-control-bar {
+  bottom: 0.5rem !important;
+  min-width: 320px !important;
+  width: 95% !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-shortcuts {
+  display: none !important; /* 隐藏弹幕快捷语以防高度遮挡 */
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-item {
+  font-size: 0.95rem !important;
+}
+
+/* 当有全屏大屏面板展示时，禁止页面背景滚动，隐藏侧边栏和头部，并把主体容器拉满 */
+body.has-fullscreen-panel {
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+body.has-fullscreen-panel .sidebar,
+body.has-fullscreen-panel .section-header {
+  display: none !important;
+}
+
+body.has-fullscreen-panel .main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 99999 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+body.has-fullscreen-panel .view-section {
+  padding: 0 !important;
+  margin: 0 !important;
   width: 100% !important;
   height: 100% !important;
 }
 
+body.has-fullscreen-panel #live-active-matches {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+
+/* 全屏状态下解除包裹容器的位置和布局限制 */
+.live-scoreboard-panel.live-fullscreen-mode .live-scoreboard-content,
+.live-scoreboard-panel:fullscreen .live-scoreboard-content,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-content {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
 /* 全屏状态下的视频：拉满铺底 */
 .live-scoreboard-panel.live-fullscreen-mode .live-video-wrapper,
-.live-scoreboard-panel:fullscreen .live-video-wrapper {
+.live-scoreboard-panel:fullscreen .live-video-wrapper,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-video-wrapper {
   position: absolute !important;
   top: 0 !important;
   left: 0 !important;
@@ -1965,7 +2066,8 @@ input[type="text"]:focus {
 }
 
 .live-scoreboard-panel.live-fullscreen-mode video,
-.live-scoreboard-panel:fullscreen video {
+.live-scoreboard-panel:fullscreen video,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen video {
   width: 100% !important;
   height: 100% !important;
   object-fit: contain !important;
@@ -2246,7 +2348,7 @@ input[type="text"]:focus {
 
 @keyframes danmaku-slide {
   from {
-    transform: translate3d(100vw, 0, 0);
+    transform: translate3d(var(--danmaku-start, 100vw), 0, 0);
   }
   to {
     transform: translate3d(-100%, 0, 0);
