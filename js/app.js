@@ -243,4 +243,21 @@ class App {
 // 启动应用
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
+
+  // 禁用双指缩放 (Pinch-to-zoom)
+  document.addEventListener('touchstart', (event) => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('gesturestart', (event) => {
+    event.preventDefault();
+  });
 });
