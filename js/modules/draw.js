@@ -158,7 +158,7 @@ export class DrawModule {
     }
 
     // 检测是否可以恢复本地临时比赛数据
-    const saved = sessionStorage.getItem('hoops_manager_live_match');
+    const saved = localStorage.getItem('hoops_manager_live_match');
     let isRestore = false;
     if (saved) {
       try {

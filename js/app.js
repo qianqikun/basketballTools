@@ -74,6 +74,10 @@ class App {
             if (this.modules.live) {
               this.modules.live.onStateSync(message.payload);
             }
+          } else if (message.type === 'DANMAKU') {
+            if (this.modules.live) {
+              this.modules.live.onDanmakuReceived(message.payload);
+            }
           }
         } catch (e) {
           console.error('解析服务器同步包失败:', e);
@@ -138,17 +142,44 @@ class App {
         await this.saveStore('teams', []);
         await this.saveStore('tournament', null);
         await this.saveStore('pastTournaments', []);
-        sessionStorage.removeItem('hoops_manager_current_view');
-        sessionStorage.removeItem('hoops_manager_active_match_id');
-        sessionStorage.removeItem('hoops_manager_live_match');
+        localStorage.removeItem('hoops_manager_current_view');
+        localStorage.removeItem('hoops_manager_active_match_id');
+        localStorage.removeItem('hoops_manager_live_match');
         this.sendWsMessage('MATCH_END', {}); // 重置时清除同步比分
         setTimeout(() => location.reload(), 300); // 稍等片刻等待请求发送后刷新
       }
     });
 
+    // 🕵️‍♂️ 隐藏后门：3秒内连点 5 次侧边栏 Logo 触发暗号输入
+    const logoArea = document.querySelector('.sidebar .logo');
+    if (logoArea) {
+      let clickCount = 0;
+      let clickTimer = null;
+      logoArea.addEventListener('click', () => {
+        clickCount++;
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => {
+          clickCount = 0;
+        }, 3000);
+        
+        if (clickCount >= 5) {
+          clickCount = 0;
+          const code = prompt('🔑 进入系统高级控制：请输入管理员重置暗号：');
+          if (code === 'admin') {
+            const resetBtn = document.getElementById('reset-all-btn');
+            if (resetBtn) {
+              resetBtn.click();
+            }
+          } else if (code !== null) {
+            alert('❌ 暗号错误，无权进行重置操作！');
+          }
+        }
+      });
+    }
+
     // 恢复上次访问的页面和比赛状态
-    const savedView = sessionStorage.getItem('hoops_manager_current_view') || 'registration';
-    const activeMatchId = sessionStorage.getItem('hoops_manager_active_match_id');
+    const savedView = localStorage.getItem('hoops_manager_current_view') || 'registration';
+    const activeMatchId = localStorage.getItem('hoops_manager_active_match_id');
 
     if (savedView === 'match' && activeMatchId && this.store.tournament && this.store.tournament.currentMatches) {
       const match = this.store.tournament.currentMatches.find(m => m.id === activeMatchId);
@@ -163,7 +194,7 @@ class App {
 
   switchView(viewId) {
     // 保存当前视图状态
-    sessionStorage.setItem('hoops_manager_current_view', viewId);
+    localStorage.setItem('hoops_manager_current_view', viewId);
 
     // 隐藏所有视图
     document.querySelectorAll('.view-section').forEach(section => {
@@ -195,7 +226,7 @@ class App {
 
   startMatch(match, isRestore = false) {
     this.modules.match.loadMatch(match, isRestore);
-    sessionStorage.setItem('hoops_manager_active_match_id', match.id);
+    localStorage.setItem('hoops_manager_active_match_id', match.id);
     this.switchView('match');
   }
 

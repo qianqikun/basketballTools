@@ -104,6 +104,10 @@ body {
   margin-top: auto;
 }
 
+#reset-all-btn {
+  display: none !important;
+}
+
 /* Main Content Area */
 .main-content {
   flex: 1;
@@ -2152,4 +2156,223 @@ input[type="text"]:focus {
     font-size: 0.6rem !important;
     padding: 0.1rem 0.25rem !important;
   }
+}
+
+/* ========================================== */
+/* 💬 实时观赛全屏弹幕系统样式                 */
+/* ========================================== */
+
+/* 默认状态下隐藏控制栏 */
+.live-danmaku-control-bar {
+  display: none !important;
+}
+
+/* 全屏状态下渲染器容器与弹幕元素 */
+.danmaku-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* 穿透鼠标点击，防止阻挡视频操作 */
+  overflow: hidden;
+  z-index: 15; /* 提升层级，使其高于比分栏(z-index: 10) */
+  display: none; /* 默认随全屏激活而显现 */
+}
+
+/* 仅在全屏模式下才显示弹幕容器 */
+.live-scoreboard-panel.live-fullscreen-mode .danmaku-container,
+.live-scoreboard-panel:fullscreen .danmaku-container {
+  display: block;
+}
+
+/* 飘过的弹幕子节点 */
+.danmaku-item {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ffffff;
+  /* 黑色高强度描边，保证弹幕在各种明暗背景的视频中都能极清晰辨认 */
+  text-shadow: 
+    1.5px 1.5px 0 #000000,
+    -1.5px -1.5px 0 #000000,
+    1.5px -1.5px 0 #000000,
+    -1.5px 1.5px 0 #000000,
+    0px 2px 4px rgba(0, 0, 0, 0.7);
+  animation: danmaku-slide 8.5s linear forwards;
+  will-change: transform;
+}
+
+@keyframes danmaku-slide {
+  from {
+    transform: translate3d(100vw, 0, 0);
+  }
+  to {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+/* 全屏状态下的弹幕控制与发送栏（磨砂毛玻璃） */
+.live-scoreboard-panel.live-fullscreen-mode .live-danmaku-control-bar,
+.live-scoreboard-panel:fullscreen .live-danmaku-control-bar {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: auto;
+  min-width: 480px;
+  max-width: 90%;
+  z-index: 20; /* 盖在视频和弹幕上方 */
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: auto; /* 必须恢复鼠标事件 */
+}
+
+/* 闲置 3 秒后淡出控制栏 (保持 translate 的 X 轴居中) */
+.live-danmaku-control-bar.idle-hidden {
+  opacity: 0 !important;
+  transform: translate(-50%, 15px) !important;
+  pointer-events: none !important;
+}
+
+/* 弹幕输入行 */
+.danmaku-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  padding: 0.45rem 0.6rem 0.45rem 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* 弹幕输入框 */
+.danmaku-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.danmaku-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 开关弹幕按钮 */
+.danmaku-toggle-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.35rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s;
+  padding: 0;
+}
+
+.danmaku-toggle-btn.active {
+  color: #ff9800; /* 激活色使用亮橙色 */
+}
+
+.danmaku-toggle-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 弹幕颜色选择器 */
+.danmaku-color-selector {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.danmaku-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1.5px solid rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.danmaku-color-dot:hover {
+  transform: scale(1.15);
+}
+
+.danmaku-color-dot.active {
+  transform: scale(1.25);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* 发送按钮 */
+.danmaku-send-btn {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: #ffffff;
+  border: none;
+  outline: none;
+  border-radius: 20px;
+  padding: 0.45rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.danmaku-send-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.danmaku-send-btn:active {
+  transform: translateY(0);
+}
+
+/* 快捷胶囊推荐词 */
+.danmaku-shortcuts {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+}
+
+.danmaku-shortcut-item {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.2rem 0.65rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danmaku-shortcut-item:hover {
+  background: #ff9800;
+  color: #ffffff;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+.danmaku-shortcut-item:active {
+  transform: translateY(0);
 }

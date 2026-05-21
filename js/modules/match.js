@@ -100,6 +100,8 @@ export class MatchModule {
     // 自定义拉流链接输入事件
     if (this.liveVideoUrl) {
       this.liveVideoUrl.addEventListener('input', () => {
+        // 保存全局自定义 URL
+        localStorage.setItem('hoops_manager_global_live_url', this.liveVideoUrl.value.trim());
         this.saveLiveState();
         this.syncToWs();
       });
@@ -151,6 +153,8 @@ export class MatchModule {
       this.liveUrlInputGroup.style.display = 'none';
       this.liveStreamGuide.style.display = 'none';
     }
+    // 保存全局持久化设置
+    localStorage.setItem('hoops_manager_global_live_enabled', enabled ? 'true' : 'false');
     this.saveLiveState();
     this.syncToWs();
   }
@@ -242,31 +246,34 @@ export class MatchModule {
     this.teams.away.el.name.textContent = match.team2.name;
 
     if (isRestore) {
-      const saved = sessionStorage.getItem('hoops_manager_live_match');
+      const saved = localStorage.getItem('hoops_manager_live_match');
       if (saved) {
         try {
           const liveData = JSON.parse(saved);
-          this.teams.home.score = liveData.home.score;
-          this.teams.home.fouls = liveData.home.fouls;
-          this.teams.home.timeouts = liveData.home.timeouts;
-          
-          this.teams.away.score = liveData.away.score;
-          this.teams.away.fouls = liveData.away.fouls;
-          this.teams.away.timeouts = liveData.away.timeouts;
-          
-          this.timeRemaining = liveData.timeRemaining;
+          // 只有当 matchId 匹配时才允许恢复现场数据，防止串场
+          if (liveData.matchId === match.id) {
+            this.teams.home.score = liveData.home.score;
+            this.teams.home.fouls = liveData.home.fouls;
+            this.teams.home.timeouts = liveData.home.timeouts;
+            
+            this.teams.away.score = liveData.away.score;
+            this.teams.away.fouls = liveData.away.fouls;
+            this.teams.away.timeouts = liveData.away.timeouts;
+            
+            this.timeRemaining = liveData.timeRemaining;
 
-          // 还原直播配置
-          if (this.liveVideoEnable) {
-            this.liveVideoEnable.checked = liveData.hasVideo || false;
-            this.liveVideoUrl.value = liveData.videoStreamUrl || '';
-            this.handleLiveToggle();
+            // 还原直播配置
+            if (this.liveVideoEnable) {
+              this.liveVideoEnable.checked = liveData.hasVideo || false;
+              this.liveVideoUrl.value = liveData.videoStreamUrl || '';
+              this.handleLiveToggle();
+            }
+
+            this.renderClock();
+            this.updateUI();
+            this.sendStartSignal(); // 重新向 WS 宣告比赛开启状态以拉起新进入者的观战面板
+            return;
           }
-
-          this.renderClock();
-          this.updateUI();
-          this.sendStartSignal(); // 重新向 WS 宣告比赛开启状态以拉起新进入者的观战面板
-          return;
         } catch (e) {
           console.error("恢复比赛数据失败，将重新初始化:", e);
         }
@@ -282,12 +289,22 @@ export class MatchModule {
     this.teams.away.fouls = 0;
     this.teams.away.timeouts = 0;
 
-    // 重置并复位直播配置
+    // 自动加载保留的全局直播配置
     if (this.liveVideoEnable) {
-      this.liveVideoEnable.checked = false;
-      this.liveVideoUrl.value = '';
-      if (this.liveToggleBtn) this.liveToggleBtn.classList.remove('active');
-      if (this.liveSettingsContent) this.liveSettingsContent.classList.remove('show');
+      const globalLiveEnabled = localStorage.getItem('hoops_manager_global_live_enabled') === 'true';
+      const globalLiveUrl = localStorage.getItem('hoops_manager_global_live_url') || '';
+      
+      this.liveVideoEnable.checked = globalLiveEnabled;
+      this.liveVideoUrl.value = globalLiveUrl;
+      
+      // 如果曾经开启过，自动展开折叠栏（如果相关 DOM 存在的话）
+      if (globalLiveEnabled && this.liveToggleBtn && this.liveSettingsContent) {
+        this.liveToggleBtn.classList.add('active');
+        this.liveSettingsContent.classList.add('show');
+      } else {
+        if (this.liveToggleBtn) this.liveToggleBtn.classList.remove('active');
+        if (this.liveSettingsContent) this.liveSettingsContent.classList.remove('show');
+      }
       this.handleLiveToggle();
     }
 
@@ -319,7 +336,7 @@ export class MatchModule {
       hasVideo,
       videoStreamUrl
     };
-    sessionStorage.setItem('hoops_manager_live_match', JSON.stringify(liveData));
+    localStorage.setItem('hoops_manager_live_match', JSON.stringify(liveData));
   }
 
   updateScore(team, points) {
@@ -437,8 +454,8 @@ export class MatchModule {
         }
 
         // 清理 live state
-        sessionStorage.removeItem('hoops_manager_live_match');
-        sessionStorage.removeItem('hoops_manager_active_match_id');
+        localStorage.removeItem('hoops_manager_live_match');
+        localStorage.removeItem('hoops_manager_active_match_id');
 
         // 保存更新后的锦标赛状态
         this.app.saveStore('tournament', t);

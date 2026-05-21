@@ -109,6 +109,7 @@ export class LiveModule {
         <div class="live-video-wrapper" style="display: none;">
           <!-- 全屏按钮 -->
           <button class="fullscreen-toggle-btn" title="网页全屏/退出"><i class='bx bx-fullscreen'></i></button>
+          
           <!-- 视频拉流状态占位 -->
           <div class="video-overlay">
             <i class='bx bx-loader-alt bx-spin'></i>
@@ -116,6 +117,38 @@ export class LiveModule {
           </div>
           <!-- 真正的 HTML5 Video 播放器 -->
           <video muted playsinline webkit-playsinline></video>
+        </div>
+
+        <!-- 弹幕展示容器 -->
+        <div class="danmaku-container"></div>
+        
+        <!-- 弹幕控制与发送栏 (仅全屏时展示) -->
+        <div class="live-danmaku-control-bar">
+          <!-- 快捷推荐词区域 -->
+          <div class="danmaku-shortcuts">
+            <span class="danmaku-shortcut-item">🔥 666</span>
+            <span class="danmaku-shortcut-item">👍 好球！</span>
+            <span class="danmaku-shortcut-item">🏀 漂亮！</span>
+            <span class="danmaku-shortcut-item">🛡️ 防守！</span>
+            <span class="danmaku-shortcut-item">⚡ 绝杀！</span>
+          </div>
+          
+          <div class="danmaku-input-row">
+            <button class="danmaku-toggle-btn active" title="开启/关闭弹幕">
+              <i class='bx bx-message-rounded-dots'></i>
+            </button>
+            
+            <div class="danmaku-color-selector">
+              <span class="danmaku-color-dot active" data-color="#ffffff" style="background: #ffffff;"></span>
+              <span class="danmaku-color-dot" data-color="#ff4d4f" style="background: #ff4d4f;"></span>
+              <span class="danmaku-color-dot" data-color="#ffeb3b" style="background: #ffeb3b;"></span>
+              <span class="danmaku-color-dot" data-color="#4caf50" style="background: #4caf50;"></span>
+              <span class="danmaku-color-dot" data-color="#2196f3" style="background: #2196f3;"></span>
+            </div>
+            
+            <input type="text" class="danmaku-input" placeholder="发个弹幕和大家一起聊球吧..." maxlength="50" />
+            <button class="danmaku-send-btn">发送</button>
+          </div>
         </div>
       </div>
     `;
@@ -131,6 +164,15 @@ export class LiveModule {
       videoOverlay: cardEl.querySelector('.video-overlay'),
       videoElement: cardEl.querySelector('.live-video-wrapper video'),
       fullscreenBtn: cardEl.querySelector('.fullscreen-toggle-btn'),
+
+      // 弹幕相关 DOM
+      danmakuContainer: cardEl.querySelector('.danmaku-container'),
+      danmakuBar: cardEl.querySelector('.live-danmaku-control-bar'),
+      danmakuToggleBtn: cardEl.querySelector('.danmaku-toggle-btn'),
+      danmakuInput: cardEl.querySelector('.danmaku-input'),
+      danmakuSendBtn: cardEl.querySelector('.danmaku-send-btn'),
+      danmakuShortcuts: cardEl.querySelector('.danmaku-shortcuts'),
+      danmakuColors: cardEl.querySelectorAll('.danmaku-color-dot'),
 
       awayName: body.querySelector('.live-team-card.away .live-team-name'),
       awayScore: body.querySelector('.live-team-card.away .live-score-value'),
@@ -158,6 +200,11 @@ export class LiveModule {
       hasVideo: false,
       videoStreamUrl: '',
       player: null,
+
+      // 弹幕相关状态与最后分配轨道时间戳（防重叠用）
+      danmakuEnabled: true,
+      selectedColor: '#ffffff',
+      lastChannelTimes: [], // 用于存储弹幕轨道上一次占用的截止时间
 
       // 上次更新的比分缓存，做跑马灯高光事件对比
       home: { score: initialData.home.score, fouls: initialData.home.fouls, timeouts: initialData.home.timeouts },
@@ -187,6 +234,110 @@ export class LiveModule {
     };
     cardEl.addEventListener('fullscreenchange', handleFsChange);
     cardEl.addEventListener('webkitfullscreenchange', handleFsChange);
+
+    // === 弹幕交互事件绑定 ===
+    const card = this.activeCards[matchId];
+
+    // 1. 弹幕显示/隐藏切换
+    elements.danmakuToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.danmakuEnabled = !card.danmakuEnabled;
+      if (card.danmakuEnabled) {
+        elements.danmakuToggleBtn.classList.add('active');
+        elements.danmakuContainer.style.display = 'block';
+        this.showTickerMessage(matchId, "💬 弹幕功能已开启");
+      } else {
+        elements.danmakuToggleBtn.classList.remove('active');
+        elements.danmakuContainer.style.display = 'none';
+        // 清空当前正在飞的弹幕
+        elements.danmakuContainer.innerHTML = '';
+        this.showTickerMessage(matchId, "💬 弹幕功能已关闭");
+      }
+    });
+
+    // 2. 颜色选择
+    elements.danmakuColors.forEach(dot => {
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.danmakuColors.forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        card.selectedColor = dot.dataset.color || '#ffffff';
+      });
+    });
+
+    // 3. 快捷推荐词一键发送
+    const shortcutContainer = elements.danmakuShortcuts;
+    if (shortcutContainer) {
+      shortcutContainer.querySelectorAll('.danmaku-shortcut-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const text = item.textContent.trim();
+          this.sendDanmakuMessage(matchId, text, card.selectedColor);
+        });
+      });
+    }
+
+    // 4. 输入框发送事件 (点击发送按钮 + 回车)
+    const doSend = () => {
+      const text = elements.danmakuInput.value.trim();
+      if (!text) return;
+      if (text.length > 50) {
+        alert('弹幕内容不能超过 50 个字哦');
+        return;
+      }
+      this.sendDanmakuMessage(matchId, text, card.selectedColor);
+      elements.danmakuInput.value = '';
+    };
+
+    elements.danmakuSendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      doSend();
+    });
+
+    elements.danmakuInput.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // 防止全屏等快捷键冲突
+      if (e.key === 'Enter') {
+        doSend();
+      }
+    });
+
+    // 5. 闲置隐藏控制栏逻辑 (Hide-on-idle)
+    let idleTimer = null;
+    const resetIdleTimer = () => {
+      elements.danmakuBar.classList.remove('idle-hidden');
+      if (idleTimer) clearTimeout(idleTimer);
+      
+      // 如果输入框没有聚焦，且当前是全屏模式，才进行 3 秒自动隐藏
+      const isFs = document.fullscreenElement === cardEl || 
+                   document.webkitFullscreenElement === cardEl;
+      const isInputFocused = document.activeElement === elements.danmakuInput;
+
+      if (isFs && !isInputFocused) {
+        idleTimer = setTimeout(() => {
+          elements.danmakuBar.classList.add('idle-hidden');
+        }, 3000);
+      }
+    };
+
+    // 全屏或鼠标在大屏面板内移动时重置闲置时钟
+    cardEl.addEventListener('mousemove', resetIdleTimer);
+    cardEl.addEventListener('click', resetIdleTimer);
+    elements.danmakuInput.addEventListener('focus', () => {
+      // 聚焦时取消隐藏，且不触发定时器
+      elements.danmakuBar.classList.remove('idle-hidden');
+      if (idleTimer) clearTimeout(idleTimer);
+    });
+    elements.danmakuInput.addEventListener('blur', resetIdleTimer);
+
+    // 当全屏状态发生改变时，重置弹幕输入框内容并重置闲置隐藏计时器
+    cardEl.addEventListener('fullscreenchange', () => {
+      elements.danmakuInput.value = '';
+      resetIdleTimer();
+    });
+    cardEl.addEventListener('webkitfullscreenchange', () => {
+      elements.danmakuInput.value = '';
+      resetIdleTimer();
+    });
 
     // 插入到大屏视图容器中
     this.container.appendChild(cardEl);
@@ -270,40 +421,54 @@ export class LiveModule {
   }
 
   // 分析该卡片前后的数据差，生成酷炫的高光广播
+  // 分析该卡片前后的数据差，生成酷炫的高光广播
   checkHighEvents(card, curr) {
     const prev = card;
     let msg = "";
+    let eventType = "";
     
     // 得分高光
     if (curr.home.score > prev.home.score) {
       const diff = curr.home.score - prev.home.score;
       msg = `🔥 ${curr.home.name} 投中精彩一球，+${diff}分！比分 ${curr.away.score} : ${curr.home.score}`;
+      eventType = "home_score";
     } else if (curr.away.score > prev.away.score) {
       const diff = curr.away.score - prev.away.score;
       msg = `⚡ ${curr.away.name} 强攻得手，+${diff}分！比分 ${curr.away.score} : ${curr.home.score}`;
+      eventType = "away_score";
     }
     
     // 犯规广播
-    else if (curr.home.fouls > prev.home.fouls) {
-      msg = `⚠️ 裁判哨响！${curr.home.name} 被吹罚犯规！`;
-    } else if (curr.away.fouls > prev.away.fouls) {
-      msg = `⚠️ 裁判哨响！${curr.away.name} 被吹罚犯规！`;
+    else if (curr.home.fouls > prev.home.fouls || curr.away.fouls > prev.away.fouls) {
+      if (curr.home.fouls > prev.home.fouls) {
+        msg = `⚠️ 裁判哨响！${curr.home.name} 被吹罚犯规！`;
+      } else {
+        msg = `⚠️ 裁判哨响！${curr.away.name} 被吹罚犯规！`;
+      }
+      eventType = "foul";
     }
     
     // 暂停广播
-    else if (curr.home.timeouts > prev.home.timeouts) {
-      msg = `⏱️ 暂停！${curr.home.name} 请求战术调整。`;
-    } else if (curr.away.timeouts > prev.away.timeouts) {
-      msg = `⏱️ 暂停！${curr.away.name} 请求战术调整。`;
+    else if (curr.home.timeouts > prev.home.timeouts || curr.away.timeouts > prev.away.timeouts) {
+      if (curr.home.timeouts > prev.home.timeouts) {
+        msg = `⏱️ 暂停！${curr.home.name} 请求战术调整。`;
+      } else {
+        msg = `⏱️ 暂停！${curr.away.name} 请求战术调整。`;
+      }
+      eventType = "timeout";
     }
 
     // 节数变更
     else if (curr.currentPeriod !== prev.currentPeriod) {
       msg = `🏁 哨声响起，比赛进入第 ${curr.currentPeriod} 节！`;
+      eventType = "period";
     }
 
     if (msg) {
       this.showTickerMessage(curr.matchId, msg, true);
+      if (eventType) {
+        this.triggerEventDanmakus(curr.matchId, eventType);
+      }
     }
   }
 
@@ -514,5 +679,144 @@ export class LiveModule {
         document.msExitFullscreen();
       }
     }
+  }
+
+  // 发送弹幕消息到 WebSocket 服务端
+  sendDanmakuMessage(matchId, text, color) {
+    if (this.app && typeof this.app.sendWsMessage === 'function') {
+      this.app.sendWsMessage('DANMAKU', {
+        matchId,
+        text,
+        color
+      });
+    } else {
+      // 兜底本地渲染
+      this.renderDanmaku(matchId, text, color);
+    }
+  }
+
+  // 接收到服务器广播的弹幕消息
+  onDanmakuReceived(payload) {
+    const { matchId, text, color } = payload;
+    const card = this.activeCards[matchId];
+    if (!card || !card.danmakuEnabled) return;
+
+    this.renderDanmaku(matchId, text, color);
+  }
+
+  // 渲染并射出一条弹幕
+  renderDanmaku(matchId, text, color) {
+    const card = this.activeCards[matchId];
+    if (!card || !card.elements.danmakuContainer) return;
+
+    // 如果弹幕已被关闭，直接返回
+    if (!card.danmakuEnabled) return;
+
+    // 创建弹幕节点
+    const danmakuEl = document.createElement('div');
+    danmakuEl.className = 'danmaku-item';
+    danmakuEl.textContent = text;
+    danmakuEl.style.color = color || '#ffffff';
+
+    // 弹幕轨道算法
+    const channelHeight = 38; // 每条轨道的纵向高度像素
+    const maxChannels = 8;    // 最多 8 条轨道
+    const now = Date.now();
+
+    // 初始化轨道时间戳数组
+    if (!card.lastChannelTimes) {
+      card.lastChannelTimes = new Array(maxChannels).fill(0);
+    }
+
+    // 寻找当前空闲（释放时间已过）的轨道
+    let availableChannels = [];
+    for (let i = 0; i < maxChannels; i++) {
+      if (now > card.lastChannelTimes[i]) {
+        availableChannels.push(i);
+      }
+    }
+
+    let selectedChannel = 0;
+    if (availableChannels.length > 0) {
+      // 随机从可用的轨道里选一条
+      selectedChannel = availableChannels[Math.floor(Math.random() * availableChannels.length)];
+    } else {
+      // 如果都忙，挑选一个最先释放的轨道
+      let minTime = card.lastChannelTimes[0];
+      let minIndex = 0;
+      for (let i = 1; i < maxChannels; i++) {
+        if (card.lastChannelTimes[i] < minTime) {
+          minTime = card.lastChannelTimes[i];
+          minIndex = i;
+        }
+      }
+      selectedChannel = minIndex;
+    }
+
+    // 更新该轨道的占用时间（防重叠防追尾，防抖2.5秒）
+    card.lastChannelTimes[selectedChannel] = now + 2500;
+
+    // 设置弹幕样式与位置
+    const topPos = 20 + selectedChannel * channelHeight;
+    danmakuEl.style.top = `${topPos}px`;
+
+    // 插入容器
+    card.elements.danmakuContainer.appendChild(danmakuEl);
+
+    // 动画结束自动销毁
+    danmakuEl.addEventListener('animationend', () => {
+      danmakuEl.remove();
+    });
+  }
+
+  // 触发气氛组弹幕
+  triggerEventDanmakus(matchId, eventType) {
+    const card = this.activeCards[matchId];
+    if (!card || !card.danmakuEnabled) return;
+
+    const danmakuPools = {
+      home_score: [
+        "🔥 漂亮！！", "主队威武！", "这球太硬了！", "神射手啊！", 
+        "主队加油！冲！", "这配合绝了！", "帅呆了这球！", "防不住啊",
+        "打三分！", "直接一波流带走！"
+      ],
+      away_score: [
+        "⚡ 好球好球！", "客队强啊！", "咬住比分了！", "这球投得真果断！", 
+        "三分刷网！舒服！", "客队加油！", "追分时刻到了！", "硬气！",
+        "好球！", "这球厉害了！"
+      ],
+      foul: [
+        "⚠️ 吹哨了吹哨了", "这个动作有点大", "防守要注意啊", 
+        "犯规了，送对方上罚球线？", "强度拉起来了！", "防守动作收一下"
+      ],
+      timeout: [
+        "⏱️ 开始画战术板了", "这暂停叫得很及时", "歇一口气，下回合继续", 
+        "两边打得火药味十足", "重新布置下防守吧", "主力可以缓一缓了"
+      ],
+      period: [
+        "🏁 这节太精彩了！", "拼体力的时候到了", "下半场继续战斗", 
+        "两边打得有来有回", "精彩的对决！"
+      ]
+    };
+
+    const pool = danmakuPools[eventType];
+    if (!pool) return;
+
+    // 随机选择 2 到 4 条弹幕
+    const count = Math.floor(Math.random() * 3) + 2; // 2, 3, 4 条
+    const shuffled = [...pool].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, count);
+
+    // 随机颜色
+    const colors = ["#ffffff", "#ff4d4f", "#ffeb3b", "#4caf50", "#2196f3"];
+
+    selected.forEach((text, index) => {
+      // 增加随机延迟，让弹幕流显得更自然
+      const delay = index * 400 + Math.random() * 500; // 错开 400ms-900ms 左右
+      setTimeout(() => {
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        this.renderDanmaku(matchId, text, randomColor);
+      }, delay);
+    });
   }
 }

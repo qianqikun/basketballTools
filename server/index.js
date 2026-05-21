@@ -122,6 +122,21 @@ wss.on('connection', (ws) => {
           // 客户端手动请求状态
           ws.send(JSON.stringify({ type: 'STATE_SYNC', payload: globalLiveMatches }));
           break;
+
+        case 'DANMAKU':
+          // 广播弹幕给所有连接的客户端
+          if (data.payload && data.payload.matchId) {
+            broadcast({
+              type: 'DANMAKU',
+              payload: {
+                matchId: data.payload.matchId,
+                text: data.payload.text,
+                color: data.payload.color || '#ffffff',
+                time: Date.now()
+              }
+            });
+          }
+          break;
       }
     } catch (err) {
       console.error('解析 WebSocket 消息失败:', err);

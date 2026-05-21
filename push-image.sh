@@ -24,7 +24,13 @@ if [ -z "$DOCKER_USER" ]; then
 fi
 
 IMAGE_NAME="basketball-tools"
-TAG="latest"
+
+# 获取并处理 TAG 标签
+TAG=$1
+if [ -z "$TAG" ]; then
+  read -p "✍️ 请输入镜像标签 (Tag) [默认: latest]: " INPUT_TAG
+  TAG=${INPUT_TAG:-latest}
+fi
 
 echo -e "\n📦 即将构建并推送镜像: ${CYAN}${DOCKER_USER}/${IMAGE_NAME}:${TAG}${NC}"
 
@@ -45,15 +51,17 @@ docker login
 # 2. 不编译 ARM64（Mac 架构）推送到 Docker Hub 可以完美规避代理软件对大体积（110MB+）基础层上传时产生的 "broken pipe" 或连接断开报错。
 # 3. 本地 Mac 测试时，直接运行本地默认的 `docker compose up -d` 即可。它会自动使用 Dockerfile 原生在本地构建 ARM64 容器，无警告，性能最佳！
 
-DATE_TAG=$(date +%Y%m%d)
-
 echo -e "\n${YELLOW}🏗️  正在编译并打包兼容云服务器的 AMD64 (x86_64) 架构镜像...${NC}"
 echo -e "请稍候，正在编译... ☕"
 
-if docker build --platform linux/amd64 -t "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" -t "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}" .; then
+if docker build --platform linux/amd64 \
+  -t "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" \
+  -t "${DOCKER_USER}/${IMAGE_NAME}:latest" .; then
+
   echo -e "\n🚀 ${GREEN}AMD64 镜像本地编译完成！正在推送至 Docker Hub...${NC}"
-  # 由于绝大部分基础镜像层（如 Node 运行时）在 Docker Hub 已存在，只会上传极小体积的本地代码改动，绝对不会触发代理报错！
-  if docker push "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" && docker push "${DOCKER_USER}/${IMAGE_NAME}:${DATE_TAG}"; then
+  # 总是同时推送自定义标签和最新（latest）标签
+  if docker push "${DOCKER_USER}/${IMAGE_NAME}:${TAG}" && \
+     docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"; then
     echo -e "\n🎉 ${GREEN}恭喜！生产镜像已成功推送至 Docker Hub！${NC}"
     echo -e "📍 镜像地址: ${CYAN}https://hub.docker.com/r/${DOCKER_USER}/${IMAGE_NAME}${NC}"
   else
