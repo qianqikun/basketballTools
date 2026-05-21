@@ -109,6 +109,8 @@ export class LiveModule {
         <div class="live-video-wrapper" style="display: none;">
           <!-- 全屏按钮 -->
           <button class="fullscreen-toggle-btn" title="网页全屏/退出"><i class='bx bx-fullscreen'></i></button>
+          <!-- 声音控制按钮 -->
+          <button class="volume-toggle-btn" title="静音/取消静音"><i class='bx bx-volume-mute'></i></button>
           
           <!-- 视频拉流状态占位 -->
           <div class="video-overlay">
@@ -164,6 +166,7 @@ export class LiveModule {
       videoOverlay: cardEl.querySelector('.video-overlay'),
       videoElement: cardEl.querySelector('.live-video-wrapper video'),
       fullscreenBtn: cardEl.querySelector('.fullscreen-toggle-btn'),
+      volumeBtn: cardEl.querySelector('.volume-toggle-btn'),
 
       // 弹幕相关 DOM
       danmakuContainer: cardEl.querySelector('.danmaku-container'),
@@ -200,6 +203,7 @@ export class LiveModule {
       hasVideo: false,
       videoStreamUrl: '',
       player: null,
+      soundEnabled: false, // 默认静音播放
 
       // 弹幕相关状态与最后分配轨道时间戳（防重叠用）
       danmakuEnabled: true,
@@ -217,6 +221,12 @@ export class LiveModule {
     elements.fullscreenBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleFullscreen(matchId);
+    });
+
+    // 绑定声音切换按钮事件
+    elements.volumeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleMute(matchId);
     });
 
     // 监听全屏变动事件以支持 Esc / 原生方式退出时类名和状态还原
@@ -612,8 +622,12 @@ export class LiveModule {
           console.log(`✅ 比赛 [${matchId}] WebRTC 握手成功，开始播放`);
           card.elements.videoOverlay.classList.add('hidden');
           
-          // 自动播放并静音
-          card.elements.videoElement.muted = true;
+          // 自动播放并根据用户声音设定设置静音状态
+          card.elements.videoElement.muted = !card.soundEnabled;
+          const volIcon = card.elements.volumeBtn.querySelector('i');
+          if (volIcon) {
+            volIcon.className = card.soundEnabled ? 'bx bx-volume-full' : 'bx bx-volume-mute';
+          }
           card.elements.videoElement.srcObject = player.stream;
           card.elements.videoElement.play().catch(e => {
             console.warn('浏览器拦截了自动播放，需要用户交互唤醒:', e);
@@ -648,6 +662,30 @@ export class LiveModule {
       console.error('SrsRtcPlayerAsync SDK 未定义，请检查 script 引入！');
       card.elements.videoOverlay.classList.remove('hidden');
       card.elements.videoOverlay.querySelector('span').textContent = '流媒体 SDK 缺失，无法拉流';
+    }
+  }
+
+  // 切换声音播放与静音状态
+  toggleMute(matchId) {
+    const card = this.activeCards[matchId];
+    if (!card || !card.elements.videoElement || !card.elements.volumeBtn) return;
+
+    const video = card.elements.videoElement;
+    const icon = card.elements.volumeBtn.querySelector('i');
+
+    card.soundEnabled = !card.soundEnabled;
+    video.muted = !card.soundEnabled;
+
+    if (card.soundEnabled) {
+      // 如果音量为0，解除静音时顺便开启默认音量
+      if (video.volume === 0) {
+        video.volume = 0.8;
+      }
+      if (icon) icon.className = 'bx bx-volume-full';
+      this.showTickerMessage(matchId, "🔊 声音已开启");
+    } else {
+      if (icon) icon.className = 'bx bx-volume-mute';
+      this.showTickerMessage(matchId, "🔇 声音已静音");
     }
   }
 

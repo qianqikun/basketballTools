@@ -26,6 +26,7 @@ body {
   height: 100vh;
   display: flex;
   overflow: hidden;
+  touch-action: manipulation;
 }
 
 /* App Container Layout */
@@ -1175,6 +1176,7 @@ input[type="text"]:focus {
   position: relative;
   overflow: hidden;
   margin-top: 1rem;
+  touch-action: manipulation;
 }
 
 .live-scoreboard-panel::after {
@@ -1848,6 +1850,34 @@ input[type="text"]:focus {
   transform: scale(1.1);
 }
 
+/* 声音控制切换按钮 (新增) */
+.volume-toggle-btn {
+  position: absolute;
+  top: 1rem;
+  right: 4rem;
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: var(--transition);
+}
+
+.volume-toggle-btn:hover {
+  opacity: 1;
+  background: var(--primary-color);
+  transform: scale(1.1);
+}
+
 /* 右侧比分数据板块 (在带直播时需适配宽度和网格布局) */
 .live-scoreboard-panel.has-live .live-scoreboard-body {
   width: 100%;
@@ -1948,7 +1978,7 @@ input[type="text"]:focus {
 .live-scoreboard-panel:fullscreen .live-scoreboard-body {
   position: absolute !important;
   top: 1.5rem !important;
-  right: 5.5rem !important;
+  right: 8rem !important; /* 原为 5.5rem，向左偏移以容纳声音和全屏按钮 */
   width: 280px !important;
   /* 更精简版宽度 */
   height: auto !important;
@@ -1975,6 +2005,15 @@ input[type="text"]:focus {
   position: absolute !important;
   top: 1.5rem !important;
   right: 1.5rem !important;
+  z-index: 20 !important;
+}
+
+/* 全屏状态下的声音控制按钮 */
+.live-scoreboard-panel.live-fullscreen-mode .volume-toggle-btn,
+.live-scoreboard-panel:fullscreen .volume-toggle-btn {
+  position: absolute !important;
+  top: 1.5rem !important;
+  right: 4.5rem !important;
   z-index: 20 !important;
 }
 
