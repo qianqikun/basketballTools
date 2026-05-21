@@ -153,6 +153,9 @@ export class LiveModule {
             <button class="danmaku-toggle-btn active" title="开启/关闭弹幕">
               <i class='bx bx-message-rounded-dots'></i>
             </button>
+            <button class="danmaku-voice-toggle-btn active" title="开启/关闭弹幕语音">
+              <i class='bx bx-volume-full'></i>
+            </button>
             
             <div class="danmaku-color-selector">
               <span class="danmaku-color-dot active" data-color="#ffffff" style="background: #ffffff;"></span>
@@ -162,6 +165,7 @@ export class LiveModule {
               <span class="danmaku-color-dot" data-color="#2196f3" style="background: #2196f3;"></span>
             </div>
             
+            <input type="text" class="danmaku-nickname-input" placeholder="昵称" maxlength="10" />
             <input type="text" class="danmaku-input" placeholder="发个弹幕和大家一起聊球吧..." maxlength="50" />
             <button class="danmaku-send-btn">发送</button>
           </div>
@@ -185,7 +189,9 @@ export class LiveModule {
       // 弹幕相关 DOM
       danmakuContainer: cardEl.querySelector('.danmaku-container'),
       danmakuBar: cardEl.querySelector('.live-danmaku-control-bar'),
-      danmakuToggleBtn: cardEl.querySelector('.danmaku-toggle-btn'),
+      danmakuToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-toggle-btn'),
+      danmakuVoiceToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-toggle-btn'),
+      danmakuNicknameInput: cardEl.querySelector('.danmaku-nickname-input'),
       danmakuInput: cardEl.querySelector('.danmaku-input'),
       danmakuSendBtn: cardEl.querySelector('.danmaku-send-btn'),
       danmakuShortcuts: cardEl.querySelector('.danmaku-shortcuts'),
@@ -206,6 +212,15 @@ export class LiveModule {
       clockState: body.querySelector('.live-center-time .live-timer-state')
     };
 
+    // 初始化弹幕昵称
+    const savedNickname = localStorage.getItem('live_danmaku_nickname') || '';
+    if (elements.danmakuNicknameInput) {
+      elements.danmakuNicknameInput.value = savedNickname;
+      elements.danmakuNicknameInput.addEventListener('input', (e) => {
+        localStorage.setItem('live_danmaku_nickname', e.target.value.trim());
+      });
+    }
+
     // 注册到本地管理字典中
     this.activeCards[matchId] = {
       dom: cardEl,
@@ -223,6 +238,7 @@ export class LiveModule {
 
       // 弹幕相关状态与最后分配轨道时间戳（防重叠用）
       danmakuEnabled: true,
+      danmakuVoiceEnabled: true,
       selectedColor: '#ffffff',
       lastChannelTimes: [], // 用于存储弹幕轨道上一次占用的截止时间
 
@@ -289,6 +305,24 @@ export class LiveModule {
       }
     });
 
+    // 1.5 弹幕语音开关切换
+    if (elements.danmakuVoiceToggleBtn) {
+      elements.danmakuVoiceToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        card.danmakuVoiceEnabled = !card.danmakuVoiceEnabled;
+        const icon = elements.danmakuVoiceToggleBtn.querySelector('i');
+        if (card.danmakuVoiceEnabled) {
+          elements.danmakuVoiceToggleBtn.classList.add('active');
+          if (icon) icon.className = 'bx bx-volume-full';
+          this.showTickerMessage(matchId, "🔊 弹幕语音已开启");
+        } else {
+          elements.danmakuVoiceToggleBtn.classList.remove('active');
+          if (icon) icon.className = 'bx bx-volume-mute';
+          this.showTickerMessage(matchId, "🔇 弹幕语音已关闭");
+        }
+      });
+    }
+
     // 2. 颜色选择
     elements.danmakuColors.forEach(dot => {
       dot.addEventListener('click', (e) => {
@@ -305,21 +339,33 @@ export class LiveModule {
       shortcutContainer.querySelectorAll('.danmaku-shortcut-item').forEach(item => {
         item.addEventListener('click', (e) => {
           e.stopPropagation();
+          const nickname = elements.danmakuNicknameInput ? elements.danmakuNicknameInput.value.trim() : '';
+          if (!nickname) {
+            alert("请先输入昵称再发送弹幕！");
+            if (elements.danmakuNicknameInput) elements.danmakuNicknameInput.focus();
+            return;
+          }
           const text = item.textContent.trim();
-          this.sendDanmakuMessage(matchId, text, card.selectedColor);
+          this.sendDanmakuMessage(matchId, text, card.selectedColor, nickname, false);
         });
       });
     }
 
     // 4. 输入框发送事件 (点击发送按钮 + 回车)
     const doSend = () => {
+      const nickname = elements.danmakuNicknameInput ? elements.danmakuNicknameInput.value.trim() : '';
+      if (!nickname) {
+        alert("请先输入昵称再发送弹幕！");
+        if (elements.danmakuNicknameInput) elements.danmakuNicknameInput.focus();
+        return;
+      }
       const text = elements.danmakuInput.value.trim();
       if (!text) return;
       if (text.length > 50) {
         alert('弹幕内容不能超过 50 个字哦');
         return;
       }
-      this.sendDanmakuMessage(matchId, text, card.selectedColor);
+      this.sendDanmakuMessage(matchId, text, card.selectedColor, nickname, true);
       elements.danmakuInput.value = '';
     };
 
@@ -928,26 +974,76 @@ export class LiveModule {
   }
 
   // 发送弹幕消息到 WebSocket 服务端
-  sendDanmakuMessage(matchId, text, color) {
+  sendDanmakuMessage(matchId, text, color, nickname, isManual) {
+    const card = this.activeCards[matchId];
     if (this.app && typeof this.app.sendWsMessage === 'function') {
       this.app.sendWsMessage('DANMAKU', {
         matchId,
         text,
-        color
+        color,
+        nickname,
+        isManual
       });
+      // 无论服务器是否原样弹回，发送者本地直接进行语音播报，体验更即时
+      if (isManual && nickname && card && card.danmakuVoiceEnabled) {
+        this.speakDanmaku(nickname, text);
+      }
     } else {
       // 兜底本地渲染
       this.renderDanmaku(matchId, text, color);
+      if (isManual && nickname && card && card.danmakuVoiceEnabled) {
+        this.speakDanmaku(nickname, text);
+      }
     }
   }
 
   // 接收到服务器广播的弹幕消息
   onDanmakuReceived(payload) {
-    const { matchId, text, color } = payload;
+    const { matchId, text, color, nickname, isManual } = payload;
     const card = this.activeCards[matchId];
     if (!card || !card.danmakuEnabled) return;
 
     this.renderDanmaku(matchId, text, color);
+
+    if (isManual && nickname && card.danmakuVoiceEnabled) {
+      this.speakDanmaku(nickname, text);
+    }
+  }
+
+  // 使用系统语音朗读高能弹幕
+  speakDanmaku(nickname, text) {
+    const voiceKey = `${nickname}-${text}`;
+    if (this.lastSpoken === voiceKey) return; // 防重复播报
+    this.lastSpoken = voiceKey;
+    setTimeout(() => { if (this.lastSpoken === voiceKey) this.lastSpoken = null; }, 5000);
+
+    if ('speechSynthesis' in window) {
+      try {
+        // 如果是首次调用，可能需要重新获取一下 voices
+        let voices = window.speechSynthesis.getVoices();
+        
+        const msg = new SpeechSynthesisUtterance(`${nickname}说：${text}`);
+        msg.lang = 'zh-CN';
+        msg.rate = 1.1; // 语速稍快一点，更有弹幕的节奏感
+        msg.pitch = 0.6; // 默认拉低音高，把普通女声压成类似低沉的男声（伪男声）
+
+        // 尝试寻找系统中的纯正中文男声
+        if (voices && voices.length > 0) {
+          const maleVoice = voices.find(v => 
+            v.lang.includes('zh') && 
+            /(Kangkang|Yunxi|Yunjian|Liao|男|Male)/i.test(v.name)
+          );
+          if (maleVoice) {
+            msg.voice = maleVoice;
+            msg.pitch = 1.0; // 如果找到了纯正男声，恢复正常音高
+          }
+        }
+
+        window.speechSynthesis.speak(msg);
+      } catch (e) {
+        console.warn('TTS 语音播报失败', e);
+      }
+    }
   }
 
   // 渲染并射出一条弹幕

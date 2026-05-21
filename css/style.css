@@ -2396,7 +2396,30 @@ body.has-fullscreen-panel #live-active-matches {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-/* 弹幕输入框 */
+/* 弹幕昵称输入框 */
+.danmaku-nickname-input {
+  width: 100px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0.2rem 0.5rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  outline: none;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.danmaku-nickname-input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.danmaku-nickname-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 弹幕正文输入框 */
 .danmaku-input {
   flex: 1;
   background: transparent;
@@ -2411,8 +2434,9 @@ body.has-fullscreen-panel #live-active-matches {
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* 开关弹幕按钮 */
-.danmaku-toggle-btn {
+/* 开关弹幕及语音按钮 */
+.danmaku-toggle-btn,
+.danmaku-voice-toggle-btn {
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.45);
@@ -2425,11 +2449,13 @@ body.has-fullscreen-panel #live-active-matches {
   padding: 0;
 }
 
-.danmaku-toggle-btn.active {
+.danmaku-toggle-btn.active,
+.danmaku-voice-toggle-btn.active {
   color: #ff9800; /* 激活色使用亮橙色 */
 }
 
-.danmaku-toggle-btn:hover {
+.danmaku-toggle-btn:hover,
+.danmaku-voice-toggle-btn:hover {
   transform: scale(1.1);
 }
 
