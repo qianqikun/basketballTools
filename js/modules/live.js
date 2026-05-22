@@ -160,14 +160,20 @@ export class LiveModule {
             <button class="danmaku-voice-toggle-btn active" title="开启/关闭弹幕语音">
               <i class='bx bx-volume-full'></i>
             </button>
-            <select class="danmaku-voice-select" title="选择弹幕播报音色">
-              <option value="zh-CN-YunjianNeural">🏀 云健 (男解说)</option>
-              <option value="zh-CN-YunxiNeural">💬 云希 (活泼男)</option>
-              <option value="zh-CN-YunyangNeural">🎙️ 云阳 (专业男)</option>
-              <option value="zh-CN-XiaoxiaoNeural">👩 晓晓 (活泼女)</option>
-              <option value="zh-CN-liaoning-XiaobeiNeural">⚡ 晓北 (辽宁女)</option>
-              <option value="zh-CN-shaanxi-XiaoniNeural">🛡️ 晓妮 (陕西女)</option>
-            </select>
+            <div class="danmaku-voice-select-container">
+              <button class="danmaku-voice-select-trigger" title="选择弹幕播报音色">
+                <span class="selected-voice-text">🏀 云健 (男解说)</span>
+                <i class='bx bx-chevron-up dropdown-arrow'></i>
+              </button>
+              <ul class="danmaku-voice-dropdown-list">
+                <li data-value="zh-CN-YunjianNeural">🏀 云健 (男解说)</li>
+                <li data-value="zh-CN-YunxiNeural">💬 云希 (活泼男)</li>
+                <li data-value="zh-CN-YunyangNeural">🎙️ 云阳 (专业男)</li>
+                <li data-value="zh-CN-XiaoxiaoNeural">👩 晓晓 (活泼女)</li>
+                <li data-value="zh-CN-liaoning-XiaobeiNeural">⚡ 晓北 (辽宁女)</li>
+                <li data-value="zh-CN-shaanxi-XiaoniNeural">🛡️ 晓妮 (陕西女)</li>
+              </ul>
+            </div>
             <button class="danmaku-history-toggle-btn" title="开启/关闭历史弹幕记录">
               <i class='bx bx-comment-detail'></i>
             </button>
@@ -217,7 +223,9 @@ export class LiveModule {
       danmakuBar: cardEl.querySelector('.live-danmaku-control-bar'),
       danmakuToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-toggle-btn'),
       danmakuVoiceToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-toggle-btn'),
-      danmakuVoiceSelect: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-select'),
+      danmakuVoiceSelect: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-select-trigger'),
+      danmakuVoiceDropdownList: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-dropdown-list'),
+      danmakuVoiceSelectContainer: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-select-container'),
       danmakuHistoryToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-history-toggle-btn'),
       danmakuNicknameInput: cardEl.querySelector('.danmaku-nickname-input'),
       danmakuInput: cardEl.querySelector('.danmaku-input'),
@@ -283,26 +291,88 @@ export class LiveModule {
       elements
     };
 
-    // 初始化语音音色
     const card = this.activeCards[matchId];
     const savedVoice = localStorage.getItem('live_danmaku_voice') || 'zh-CN-YunjianNeural';
-    if (elements.danmakuVoiceSelect) {
-      elements.danmakuVoiceSelect.value = savedVoice;
-      elements.danmakuVoiceSelect.disabled = !card.danmakuVoiceEnabled;
-      
-      elements.danmakuVoiceSelect.addEventListener('change', (e) => {
-        const newVoice = e.target.value;
-        localStorage.setItem('live_danmaku_voice', newVoice);
-        
-        // 遍历所有正在直播的卡片，同步下拉框选中值
-        Object.keys(this.activeCards).forEach(id => {
-          const c = this.activeCards[id];
-          if (c && c.elements && c.elements.danmakuVoiceSelect) {
-            c.elements.danmakuVoiceSelect.value = newVoice;
+
+    // 帮助函数：更新当前卡片的自定义下拉框的文字及高亮状态
+    const updateDropdownUI = (voiceValue) => {
+      if (elements.danmakuVoiceSelect && elements.danmakuVoiceDropdownList) {
+        const selectedLi = elements.danmakuVoiceDropdownList.querySelector(`li[data-value="${voiceValue}"]`);
+        const textSpan = elements.danmakuVoiceSelect.querySelector('.selected-voice-text');
+        if (selectedLi && textSpan) {
+          textSpan.textContent = selectedLi.textContent;
+        }
+        elements.danmakuVoiceDropdownList.querySelectorAll('li').forEach(li => {
+          if (li.getAttribute('data-value') === voiceValue) {
+            li.classList.add('active');
+          } else {
+            li.classList.remove('active');
           }
         });
+      }
+    };
+
+    if (elements.danmakuVoiceSelect) {
+      updateDropdownUI(savedVoice);
+      elements.danmakuVoiceSelect.disabled = !card.danmakuVoiceEnabled;
+      if (!card.danmakuVoiceEnabled) {
+        elements.danmakuVoiceSelectContainer.classList.add('disabled');
+      } else {
+        elements.danmakuVoiceSelectContainer.classList.remove('disabled');
+      }
+      
+      // 点击触发器展开/收折下拉菜单
+      elements.danmakuVoiceSelect.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (elements.danmakuVoiceSelect.disabled) return;
         
-        this.showTickerMessage(matchId, "🗣️ 已切换弹幕语音音色");
+        const isShown = elements.danmakuVoiceDropdownList.classList.contains('show');
+        // 先关闭所有卡片的下拉菜单
+        document.querySelectorAll('.danmaku-voice-dropdown-list').forEach(list => list.classList.remove('show'));
+        
+        if (!isShown) {
+          elements.danmakuVoiceDropdownList.classList.add('show');
+        }
+      });
+      
+      // 点击选项
+      elements.danmakuVoiceDropdownList.querySelectorAll('li').forEach(li => {
+        li.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newVoice = li.getAttribute('data-value');
+          localStorage.setItem('live_danmaku_voice', newVoice);
+          
+          // 遍历所有正在直播的卡片，同步下拉框选中值和UI
+          Object.keys(this.activeCards).forEach(id => {
+            const c = this.activeCards[id];
+            if (c && c.elements && c.elements.danmakuVoiceSelect) {
+              const selectedLi = c.elements.danmakuVoiceDropdownList.querySelector(`li[data-value="${newVoice}"]`);
+              const textSpan = c.elements.danmakuVoiceSelect.querySelector('.selected-voice-text');
+              if (selectedLi && textSpan) {
+                textSpan.textContent = selectedLi.textContent;
+              }
+              c.elements.danmakuVoiceDropdownList.querySelectorAll('li').forEach(item => {
+                if (item.getAttribute('data-value') === newVoice) {
+                  item.classList.add('active');
+                } else {
+                  item.classList.remove('active');
+                }
+              });
+            }
+          });
+          
+          elements.danmakuVoiceDropdownList.classList.remove('show');
+          this.showTickerMessage(matchId, "🗣️ 已切换弹幕语音音色");
+        });
+      });
+    }
+
+    if (!window.hasGlobalVoiceDropdownCloseListener) {
+      window.hasGlobalVoiceDropdownCloseListener = true;
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.danmaku-voice-dropdown-list').forEach(list => {
+          list.classList.remove('show');
+        });
       });
     }
 

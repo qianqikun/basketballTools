@@ -2423,6 +2423,7 @@ body.has-fullscreen-panel #live-active-matches {
 /* 弹幕正文输入框 */
 .danmaku-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
@@ -2686,43 +2687,169 @@ body.has-fullscreen-panel #live-active-matches {
   font-weight: 400;
 }
 
-/* 弹幕语音音色选择下拉菜单 */
-.danmaku-voice-select {
+/* ==========================================================================
+   Custom Dropdown Component Styles (自定义弹幕播报音色下拉组件)
+   ========================================================================== */
+.danmaku-voice-select-container {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.danmaku-voice-select-trigger {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  padding: 0.2rem 0.4rem;
+  padding: 0.2rem 0.5rem;
   color: #ffffff;
   font-size: 0.8rem;
   outline: none;
   cursor: pointer;
-  max-width: 110px;
   transition: all 0.3s ease;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+
+.danmaku-voice-select-trigger .selected-voice-text {
+  max-width: 90px;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
 }
 
-.danmaku-voice-select:hover:not(:disabled) {
+.danmaku-voice-select-trigger .dropdown-arrow {
+  font-size: 0.95rem;
+  transition: transform 0.3s ease;
+  opacity: 0.7;
+}
+
+.danmaku-voice-select-container:not(.disabled) .danmaku-voice-select-trigger:hover {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.4);
 }
 
-.danmaku-voice-select:focus:not(:disabled) {
-  border-color: #ff9800;
-  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
+.danmaku-voice-select-container.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-.danmaku-voice-select:disabled {
-  opacity: 0.4;
+.danmaku-voice-select-container.disabled .danmaku-voice-select-trigger {
   cursor: not-allowed;
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
 }
 
-.danmaku-voice-select option {
-  background: #1e293b;
+.danmaku-voice-dropdown-list {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 6px 0;
+  margin: 0;
+  list-style: none;
+  min-width: 140px;
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: none;
+  flex-direction: column;
+}
+
+.danmaku-voice-dropdown-list.show {
+  display: flex;
+}
+
+.danmaku-voice-dropdown-list li {
+  padding: 8px 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.danmaku-voice-dropdown-list li:hover {
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
+}
+
+.danmaku-voice-dropdown-list li.active {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Mobile Landscape Fullscreen Fine-tuning (移动端伪全屏下的排版和组件精细优化)
+   ========================================================================== */
+
+/* 1. 比分面板特异性增强与强力贴右边缘定位 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.live-fullscreen-mode .live-scoreboard-body,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen:fullscreen .live-scoreboard-body,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-body {
+  top: 0.5rem !important;
+  right: 0.5rem !important; /* 强力贴靠右边缘 */
+  width: 230px !important;
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* 2. 弹幕控制条在极窄宽度下的适配逻辑 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-input-row {
+  padding: 0.35rem 0.5rem !important;
+  gap: 0.35rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-nickname-input {
+  width: 60px !important;
+  padding: 0.2rem 0.35rem !important;
+  font-size: 0.8rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-select-trigger {
+  padding: 0.2rem 0.35rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-select-trigger .selected-voice-text {
+  max-width: 60px !important; /* 强制裁剪名称以节省空间 */
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-input {
+  min-width: 0 !important;
+  flex: 1 !important;
+  flex-shrink: 1 !important;
+  font-size: 0.85rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-color-selector {
+  gap: 0.25rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-color-dot {
+  width: 11px !important;
+  height: 11px !important;
+  border-width: 1px !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-toggle-btn,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-toggle-btn,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-history-toggle-btn {
+  font-size: 1.15rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-send-btn {
+  padding: 0.35rem 0.85rem !important;
+  font-size: 0.8rem !important;
+  flex-shrink: 0 !important;
 }
