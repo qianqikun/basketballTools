@@ -65,6 +65,11 @@ class App {
 
       this.ws.onopen = () => {
         console.log('📡 实时比分同步连接已建立');
+        // 将连接断开期间排队的请求重发
+        if (this.wsQueue && this.wsQueue.length > 0) {
+          this.wsQueue.forEach(msg => this.sendWsMessage(msg.type, msg.payload));
+          this.wsQueue = [];
+        }
       };
 
       this.ws.onmessage = (event) => {
@@ -111,7 +116,9 @@ class App {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, payload }));
     } else {
-      console.warn('同步连接处于不可用状态，消息丢失:', type);
+      console.warn('同步连接处于不可用状态，消息已放入队列:', type);
+      if (!this.wsQueue) this.wsQueue = [];
+      this.wsQueue.push({ type, payload });
     }
   }
 
