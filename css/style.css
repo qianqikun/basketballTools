@@ -2462,6 +2462,11 @@ body.has-fullscreen-panel #live-active-matches {
   transform: scale(1.1);
 }
 
+/* 历史记录按钮始终保持与左侧激活按钮相同的黄色，以达到视觉统一 */
+.danmaku-history-toggle-btn {
+  color: #ff9800;
+}
+
 /* 弹幕颜色选择器 */
 .danmaku-color-selector {
   display: flex;
