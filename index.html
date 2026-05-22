@@ -96,7 +96,16 @@
 
       <!-- 实时记分模块 -->
       <section id="match" class="view-section">
-        <div class="scoreboard-container">
+        <!-- 比赛控制权限遮罩层 -->
+        <div id="match-control-overlay" class="control-overlay" style="display: none;">
+          <div class="overlay-content">
+            <i class='bx bx-loader-alt bx-spin' id="match-overlay-icon"></i>
+            <h3 id="match-overlay-text">正在获取控制权...</h3>
+            <p id="match-overlay-subtext">请稍候，系统正在向服务器申请比赛控制锁。</p>
+            <button id="match-overlay-back-btn" class="secondary-btn" style="display:none; margin-top: 1.5rem; margin-left: auto; margin-right: auto;"><i class='bx bx-arrow-back'></i> 返回对阵列表</button>
+          </div>
+        </div>
+        <div class="scoreboard-container" id="match-scoreboard-container">
           <div class="match-info-bar">
             <span id="match-round-name">第一场</span>
             <button id="back-to-tournament" class="secondary-btn"><i class='bx bx-arrow-back'></i> 返回对阵</button>

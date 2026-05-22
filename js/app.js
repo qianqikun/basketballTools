@@ -78,6 +78,14 @@ class App {
             if (this.modules.live) {
               this.modules.live.onDanmakuReceived(message.payload);
             }
+          } else if (message.type === 'CONTROL_RESPONSE') {
+            if (this.modules.match) {
+              this.modules.match.onControlResponse(message.payload);
+            }
+          } else if (message.type === 'CONTROL_LOST') {
+            if (this.modules.match) {
+              this.modules.match.onControlLost(message.payload);
+            }
           }
         } catch (e) {
           console.error('解析服务器同步包失败:', e);
@@ -221,6 +229,11 @@ class App {
       this.modules.draw.render();
     } else if (viewId === 'history') {
       this.modules.history.render();
+    } else if (viewId === 'match') {
+      // 拦截未选择比赛时直接进入控制台
+      if (!this.modules.match.currentMatch) {
+        this.modules.match.showOverlay('empty', '没有比赛控制中', '请先在“抽签对阵”页面选择一场比赛进入控制。');
+      }
     }
   }
 

@@ -34,25 +34,31 @@ export class MatchModule {
     this.livePushQr = document.getElementById('live-push-qr');
     this.qrInstance = null;
     
+    // 遮罩层 DOM
+    this.overlay = document.getElementById('match-control-overlay');
+    this.overlayIcon = document.getElementById('match-overlay-icon');
+    this.overlayText = document.getElementById('match-overlay-text');
+    this.overlaySubtext = document.getElementById('match-overlay-subtext');
+    this.overlayBackBtn = document.getElementById('match-overlay-back-btn');
+    this.scoreboardContainer = document.getElementById('match-scoreboard-container');
+    
     this.bindEvents();
   }
 
   bindEvents() {
     this.backBtn.addEventListener('click', async () => {
       this.stopClock();
-      
-      // 在返回对阵页面时，主动解锁比赛
-      const t = this.app.store.tournament;
-      if (t && this.currentMatch) {
-        const match = t.currentMatches.find(m => m.id === this.currentMatch.id);
-        if (match) {
-          match.lockedBy = null;
-          await this.app.saveStore('tournament', t);
-        }
-      }
-      
+      this.currentMatch = null; // 离开时清空状态
       this.app.switchView('tournament');
     });
+
+    if (this.overlayBackBtn) {
+      this.overlayBackBtn.addEventListener('click', () => {
+        this.stopClock();
+        this.currentMatch = null;
+        this.app.switchView('tournament');
+      });
+    }
 
     // 绑定加减分
     document.querySelectorAll('.score-btn').forEach(btn => {
@@ -237,6 +243,8 @@ export class MatchModule {
 
   loadMatch(match, isRestore = false) {
     this.currentMatch = match;
+    this.showOverlay('loading', '正在获取控制权...', '请稍候，系统正在向服务器申请比赛控制锁。');
+    
     this.roundName.textContent = `当前对阵`;
     
     // 初始化队伍信息
@@ -271,7 +279,9 @@ export class MatchModule {
 
             this.renderClock();
             this.updateUI();
-            this.sendStartSignal(); // 重新向 WS 宣告比赛开启状态以拉起新进入者的观战面板
+            
+            // 发起控制权请求，成功后自动推流
+            this.requestControl(match.id, false);
             return;
           }
         } catch (e) {
@@ -312,8 +322,8 @@ export class MatchModule {
     this.updateUI();
     this.saveLiveState();
     
-    // 首次开赛，推送开哨信号
-    this.sendStartSignal();
+    // 发起控制权请求，成功后自动推流
+    this.requestControl(match.id, false);
   }
 
   saveLiveState() {
@@ -441,7 +451,6 @@ export class MatchModule {
         match.score1 = this.teams.home.score;
         match.score2 = this.teams.away.score;
         match.completed = true;
-        match.lockedBy = null;
         
         // 判定胜负
         if (match.score1 > match.score2) {
@@ -480,6 +489,83 @@ export class MatchModule {
         alert(`比赛结束！胜者是：${match.winner.name}`);
         this.app.switchView('tournament');
       }
+    }
+  }
+
+  // WebSocket 权限控制逻辑
+  showOverlay(type, message, subtext = '') {
+    if (!this.overlay) return;
+    this.overlay.style.display = 'flex';
+    if (this.scoreboardContainer) {
+      this.scoreboardContainer.style.filter = 'blur(8px)';
+      this.scoreboardContainer.style.pointerEvents = 'none';
+    }
+    
+    this.overlayText.textContent = message;
+    this.overlaySubtext.textContent = subtext;
+    
+    if (type === 'loading') {
+      this.overlayIcon.className = 'bx bx-loader-alt bx-spin';
+      this.overlayIcon.style.color = 'var(--primary-color)';
+      this.overlayBackBtn.style.display = 'none';
+    } else if (type === 'error') {
+      this.overlayIcon.className = 'bx bx-error-circle';
+      this.overlayIcon.style.color = 'var(--danger)';
+      this.overlayBackBtn.style.display = 'inline-flex';
+    } else if (type === 'empty') {
+      this.overlayIcon.className = 'bx bx-box';
+      this.overlayIcon.style.color = 'var(--text-secondary)';
+      this.overlayBackBtn.style.display = 'none'; // 通常 empty 状态是由侧边栏切来的，不用显示专门的回退按钮
+    }
+  }
+
+  hideOverlay() {
+    if (!this.overlay) return;
+    this.overlay.style.display = 'none';
+    if (this.scoreboardContainer) {
+      this.scoreboardContainer.style.filter = 'none';
+      this.scoreboardContainer.style.pointerEvents = 'auto';
+    }
+  }
+
+  requestControl(matchId, force = false) {
+    this.controlPending = true;
+    const type = force ? 'FORCE_TAKE_CONTROL' : 'REQUEST_CONTROL';
+    this.app.sendWsMessage(type, { matchId });
+  }
+
+  onControlResponse(payload) {
+    if (!this.controlPending || !this.currentMatch || payload.matchId !== this.currentMatch.id) return;
+    
+    if (payload.success) {
+      this.controlPending = false;
+      this.hideOverlay();
+      // 成功获取控制权，发送 START
+      this.sendStartSignal();
+      this.syncToWs();
+    } else {
+      // 获取控制权失败（被占用）
+      this.showOverlay('error', '该比赛已被占用', '另一台设备正在控制此比赛。');
+      setTimeout(() => {
+        if (confirm(`⚠️ 警告：该场比赛正由另一台设备控制中！\n\n是否强行接管此比赛的裁判控制权？\n(注意：强行接管将踢出对方，并接管此比赛！)`)) {
+          this.showOverlay('loading', '正在强行接管...', '请稍候...');
+          this.requestControl(payload.matchId, true);
+        } else {
+          // 取消接管，退回
+          this.controlPending = false;
+          this.currentMatch = null;
+          this.app.switchView('tournament');
+        }
+      }, 50);
+    }
+  }
+
+  onControlLost(payload) {
+    if (this.currentMatch && this.currentMatch.id === payload.matchId) {
+      this.stopClock();
+      this.currentMatch = null;
+      alert('⚠️ 您的控制权已被另一台设备强制接管！\n为防止比分冲突，已安全退出控制面板。');
+      this.app.switchView('tournament');
     }
   }
 }

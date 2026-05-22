@@ -138,24 +138,6 @@ export class DrawModule {
     const t = this.app.store.tournament;
     const match = t.currentMatches.find(m => m.id === matchId);
     if (!match) return;
-    
-    const myClientId = this.app.getClientId();
-
-    // 2. 检查此比赛是否被其他设备锁定
-    if (match.lockedBy && match.lockedBy !== myClientId) {
-      if (confirm('⚠️ 警告：该场比赛正由其他裁判在另一台设备上进行中！\n\n是否强行接管并解锁此比赛？\n(注意：强行接管将清除对方的锁定，允许您控制该场比赛，但可能会覆盖对方未提交的数据)')) {
-        // 强制解锁并接管
-        match.lockedBy = myClientId;
-        await this.app.saveStore('tournament', t);
-      } else {
-        this.render(); // 刷新界面以反映最新锁定状态
-        return;
-      }
-    } else if (!match.lockedBy) {
-      // 3. 如果没被锁定，自己锁定它
-      match.lockedBy = myClientId;
-      await this.app.saveStore('tournament', t);
-    }
 
     // 检测是否可以恢复本地临时比赛数据
     const saved = localStorage.getItem('hoops_manager_live_match');
