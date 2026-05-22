@@ -156,6 +156,9 @@ export class LiveModule {
             <button class="danmaku-voice-toggle-btn active" title="开启/关闭弹幕语音">
               <i class='bx bx-volume-full'></i>
             </button>
+            <button class="danmaku-history-toggle-btn" title="开启/关闭历史弹幕记录">
+              <i class='bx bx-comment-detail'></i>
+            </button>
             
             <div class="danmaku-color-selector">
               <span class="danmaku-color-dot active" data-color="#ffffff" style="background: #ffffff;"></span>
@@ -168,6 +171,17 @@ export class LiveModule {
             <input type="text" class="danmaku-nickname-input" placeholder="昵称" maxlength="10" />
             <input type="text" class="danmaku-input" placeholder="发个弹幕和大家一起聊球吧..." maxlength="50" />
             <button class="danmaku-send-btn">发送</button>
+          </div>
+        </div>
+        
+        <!-- 弹幕历史记录面板 (默认隐藏) -->
+        <div class="danmaku-history-panel">
+          <div class="history-panel-header">
+            <h3>💬 弹幕记录</h3>
+            <button class="history-close-btn" title="关闭"><i class='bx bx-x'></i></button>
+          </div>
+          <div class="history-panel-body">
+            <ul class="history-list"></ul>
           </div>
         </div>
       </div>
@@ -191,11 +205,18 @@ export class LiveModule {
       danmakuBar: cardEl.querySelector('.live-danmaku-control-bar'),
       danmakuToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-toggle-btn'),
       danmakuVoiceToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-toggle-btn'),
+      danmakuHistoryToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-history-toggle-btn'),
       danmakuNicknameInput: cardEl.querySelector('.danmaku-nickname-input'),
       danmakuInput: cardEl.querySelector('.danmaku-input'),
       danmakuSendBtn: cardEl.querySelector('.danmaku-send-btn'),
       danmakuShortcuts: cardEl.querySelector('.danmaku-shortcuts'),
       danmakuColors: cardEl.querySelectorAll('.danmaku-color-dot'),
+
+      // 历史记录面板 DOM
+      historyPanel: cardEl.querySelector('.danmaku-history-panel'),
+      historyCloseBtn: cardEl.querySelector('.history-close-btn'),
+      historyList: cardEl.querySelector('.history-list'),
+      historyBody: cardEl.querySelector('.history-panel-body'),
 
       awayName: body.querySelector('.live-team-card.away .live-team-name'),
       awayScore: body.querySelector('.live-team-card.away .live-score-value'),
@@ -319,6 +340,31 @@ export class LiveModule {
           elements.danmakuVoiceToggleBtn.classList.remove('active');
           if (icon) icon.className = 'bx bx-volume-mute';
           this.showTickerMessage(matchId, "🔇 弹幕语音已关闭");
+        }
+      });
+    }
+
+    // 1.6 弹幕历史面板开关
+    if (elements.danmakuHistoryToggleBtn) {
+      elements.danmakuHistoryToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cardEl.classList.toggle('has-history-open');
+        if (cardEl.classList.contains('has-history-open')) {
+          elements.danmakuHistoryToggleBtn.classList.add('active');
+          if (elements.historyBody) {
+            elements.historyBody.scrollTop = elements.historyBody.scrollHeight;
+          }
+        } else {
+          elements.danmakuHistoryToggleBtn.classList.remove('active');
+        }
+      });
+    }
+    if (elements.historyCloseBtn) {
+      elements.historyCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cardEl.classList.remove('has-history-open');
+        if (elements.danmakuHistoryToggleBtn) {
+          elements.danmakuHistoryToggleBtn.classList.remove('active');
         }
       });
     }
@@ -461,6 +507,13 @@ export class LiveModule {
       this.checkHighEvents(card, data);
     } else {
       this.showTickerMessage(matchId, "📡 实时同步成功 - 比赛直播中");
+      // 首次同步时，渲染服务端传来的历史弹幕记录
+      if (data.danmakuHistory && data.danmakuHistory.length > 0 && card.elements.historyList) {
+        card.elements.historyList.innerHTML = ''; // 清空可能存在的旧记录
+        data.danmakuHistory.forEach(payload => {
+          this.renderDanmakuHistoryItem(matchId, payload);
+        });
+      }
     }
 
     // 4. 更新本地缓存的数据以便下次做高光对比
@@ -990,6 +1043,7 @@ export class LiveModule {
       }
     } else {
       // 兜底本地渲染
+      this.renderDanmakuHistoryItem(matchId, { matchId, text, color, nickname, isManual, time: Date.now() });
       this.renderDanmaku(matchId, text, color);
       if (isManual && nickname && card && card.danmakuVoiceEnabled) {
         this.speakDanmaku(nickname, text);
@@ -997,11 +1051,55 @@ export class LiveModule {
     }
   }
 
+  // 渲染单条历史弹幕记录到面板中
+  renderDanmakuHistoryItem(matchId, payload) {
+    const card = this.activeCards[matchId];
+    if (!card || !card.elements.historyList) return;
+    
+    const li = document.createElement('li');
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'history-time';
+    const date = payload.time ? new Date(payload.time) : new Date();
+    timeSpan.textContent = `[${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}]`;
+    
+    const nickSpan = document.createElement('span');
+    nickSpan.className = 'history-nickname';
+    nickSpan.style.color = payload.color || '#ffffff';
+    nickSpan.textContent = (payload.nickname || '匿名') + ':';
+    
+    const textSpan = document.createElement('span');
+    textSpan.className = 'history-text';
+    textSpan.style.color = payload.color || '#ffffff';
+    textSpan.textContent = payload.text;
+    
+    li.appendChild(timeSpan);
+    li.appendChild(nickSpan);
+    li.appendChild(textSpan);
+    
+    card.elements.historyList.appendChild(li);
+    
+    // 保持 DOM 里最多 200 条记录
+    while (card.elements.historyList.children.length > 200) {
+      card.elements.historyList.removeChild(card.elements.historyList.firstChild);
+    }
+    
+    // 如果面板正打开着，自动滚动到底部
+    if (card.dom.classList.contains('has-history-open')) {
+      card.elements.historyBody.scrollTop = card.elements.historyBody.scrollHeight;
+    }
+  }
+
   // 接收到服务器广播的弹幕消息
   onDanmakuReceived(payload) {
     const { matchId, text, color, nickname, isManual } = payload;
     const card = this.activeCards[matchId];
-    if (!card || !card.danmakuEnabled) return;
+    if (!card) return;
+
+    // 记录到历史面板
+    this.renderDanmakuHistoryItem(matchId, payload);
+
+    if (!card.danmakuEnabled) return;
 
     this.renderDanmaku(matchId, text, color);
 

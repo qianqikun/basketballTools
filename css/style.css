@@ -2436,7 +2436,8 @@ body.has-fullscreen-panel #live-active-matches {
 
 /* 开关弹幕及语音按钮 */
 .danmaku-toggle-btn,
-.danmaku-voice-toggle-btn {
+.danmaku-voice-toggle-btn,
+.danmaku-history-toggle-btn {
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.45);
@@ -2450,12 +2451,14 @@ body.has-fullscreen-panel #live-active-matches {
 }
 
 .danmaku-toggle-btn.active,
-.danmaku-voice-toggle-btn.active {
+.danmaku-voice-toggle-btn.active,
+.danmaku-history-toggle-btn.active {
   color: #ff9800; /* 激活色使用亮橙色 */
 }
 
 .danmaku-toggle-btn:hover,
-.danmaku-voice-toggle-btn:hover {
+.danmaku-voice-toggle-btn:hover,
+.danmaku-history-toggle-btn:hover {
   transform: scale(1.1);
 }
 
@@ -2542,4 +2545,133 @@ body.has-fullscreen-panel #live-active-matches {
 
 .danmaku-shortcut-item:active {
   transform: translateY(0);
+}
+/* ========================================== */
+/* 弹幕历史记录面板 (Danmaku History Panel)   */
+/* ========================================== */
+.danmaku-history-panel {
+  position: absolute;
+  top: 0;
+  right: -320px;
+  width: 320px;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+}
+
+.live-scoreboard-panel.has-history-open .danmaku-history-panel {
+  right: 0;
+}
+
+/* PC 端挤压内容区域 */
+.live-scoreboard-panel {
+  transition: width 0.3s ease;
+}
+.live-scoreboard-panel .live-scoreboard-content {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.live-scoreboard-panel.has-history-open .live-scoreboard-content {
+  width: calc(100% - 320px);
+}
+
+/* 移动端横屏适配 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-history-panel {
+  width: 40%;
+  right: -40%;
+}
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.has-history-open .danmaku-history-panel {
+  right: 0;
+}
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.has-history-open .live-scoreboard-content {
+  width: 60%;
+}
+
+/* 历史面板内部样式 */
+.history-panel-header {
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-panel-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.history-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.history-close-btn:hover {
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.history-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+  scroll-behavior: smooth;
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+.history-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+.history-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.history-panel-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.history-list li {
+  font-size: 0.95rem;
+  word-break: break-all;
+  line-height: 1.4;
+  animation: fadeIn 0.3s ease;
+}
+
+.history-list li .history-time {
+  color: rgba(255,255,255,0.3);
+  font-size: 0.8rem;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.history-list li .history-nickname {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.history-list li .history-text {
+  font-weight: 400;
 }

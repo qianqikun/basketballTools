@@ -83,6 +83,7 @@ wss.on('connection', (ws) => {
               isRunning: false,
               hasVideo: data.payload.hasVideo || false,
               videoStreamUrl: data.payload.videoStreamUrl || '',
+              danmakuHistory: [], // 初始化弹幕历史记录队列
               lastUpdated: Date.now()
             };
             broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
@@ -107,12 +108,12 @@ wss.on('connection', (ws) => {
         case 'MATCH_END':
           if (data.payload && data.payload.matchId) {
             const mid = data.payload.matchId;
-            console.log(`🏆 比赛 [${mid}] 已结束并提交，清除其实时广播状态`);
+            console.log(`🏆 比赛 [${mid}] 已结束并提交，清除其实时广播状态及弹幕记录`);
             delete globalLiveMatches[mid];
             broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
           } else {
             // 回退处理：如果没有发 matchId，则清空所有（兼容老逻辑）
-            console.log('🏆 收到未指定ID的比赛结束信号，清除所有进行中比赛');
+            console.log('🏆 收到未指定ID的比赛结束信号，清除所有进行中比赛及弹幕记录');
             globalLiveMatches = {};
             broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
           }
@@ -126,14 +127,31 @@ wss.on('connection', (ws) => {
         case 'DANMAKU':
           // 广播弹幕给所有连接的客户端
           if (data.payload && data.payload.matchId) {
+            const matchId = data.payload.matchId;
+            const danmakuPayload = {
+              matchId: matchId,
+              text: data.payload.text,
+              color: data.payload.color || '#ffffff',
+              nickname: data.payload.nickname || '', // 透传昵称
+              isManual: !!data.payload.isManual,     // 透传是否为手动发送标志
+              time: Date.now()
+            };
+
+            // 保存到弹幕历史队列
+            if (globalLiveMatches[matchId]) {
+              if (!globalLiveMatches[matchId].danmakuHistory) {
+                globalLiveMatches[matchId].danmakuHistory = [];
+              }
+              globalLiveMatches[matchId].danmakuHistory.push(danmakuPayload);
+              // 限制最多保存 200 条，防止内存泄露
+              if (globalLiveMatches[matchId].danmakuHistory.length > 200) {
+                globalLiveMatches[matchId].danmakuHistory.shift();
+              }
+            }
+
             broadcast({
               type: 'DANMAKU',
-              payload: {
-                matchId: data.payload.matchId,
-                text: data.payload.text,
-                color: data.payload.color || '#ffffff',
-                time: Date.now()
-              }
+              payload: danmakuPayload
             });
           }
           break;
