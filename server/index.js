@@ -4,6 +4,7 @@ const path = require('path');
 const db = require('./db');
 const http = require('http');
 const WebSocket = require('ws');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
 const PORT = 3000;
@@ -37,6 +38,43 @@ app.post('/api/store', async (req, res) => {
   } catch (err) {
     console.error('Failed to save data:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 语音合成播报接口
+app.get('/api/tts', async (req, res) => {
+  try {
+    const text = req.query.text;
+    const voice = req.query.voice || 'zh-CN-YunxiNeural'; // 默认云希高质男声
+    
+    if (!text) {
+      return res.status(400).send('text parameter is required');
+    }
+
+    // 限制单次语音合成的最大长度为 50 字，与前端对齐
+    const cleanText = text.toString().substring(0, 50);
+
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    
+    const { audioStream } = tts.toStream(cleanText);
+
+    // 设置 Content-Type 为 MPEG 音频格式以供浏览器直接解码播放
+    res.setHeader('Content-Type', 'audio/mpeg');
+
+    audioStream.pipe(res);
+
+    audioStream.on('error', (err) => {
+      console.error('🔊 TTS 转换流出错:', err);
+      if (!res.headersSent) {
+        res.status(500).send('TTS processing stream error');
+      }
+    });
+  } catch (err) {
+    console.error('🔊 TTS 合成失败:', err);
+    if (!res.headersSent) {
+      res.status(500).send(err.message);
+    }
   }
 });
 
@@ -134,6 +172,7 @@ wss.on('connection', (ws) => {
               color: data.payload.color || '#ffffff',
               nickname: data.payload.nickname || '', // 透传昵称
               isManual: !!data.payload.isManual,     // 透传是否为手动发送标志
+              voice: data.payload.voice || 'zh-CN-YunjianNeural', // 透传音色
               time: Date.now()
             };
 

@@ -9,6 +9,10 @@ export class LiveModule {
     this.emptyState = document.getElementById('live-empty-state');
     this.container = document.getElementById('live-active-matches');
 
+    // 语音播放队列与状态初始化
+    this.speechQueue = [];
+    this.isSpeaking = false;
+
     // 监听物理返回键，用来自动退出网页模拟全屏或移动端伪横屏全屏
     window.addEventListener('popstate', (e) => {
       Object.keys(this.activeCards).forEach(matchId => {
@@ -156,6 +160,14 @@ export class LiveModule {
             <button class="danmaku-voice-toggle-btn active" title="开启/关闭弹幕语音">
               <i class='bx bx-volume-full'></i>
             </button>
+            <select class="danmaku-voice-select" title="选择弹幕播报音色">
+              <option value="zh-CN-YunjianNeural">🏀 云健 (男解说)</option>
+              <option value="zh-CN-YunxiNeural">💬 云希 (活泼男)</option>
+              <option value="zh-CN-YunyangNeural">🎙️ 云阳 (专业男)</option>
+              <option value="zh-CN-XiaoxiaoNeural">👩 晓晓 (活泼女)</option>
+              <option value="zh-CN-liaoning-XiaobeiNeural">⚡ 晓北 (辽宁女)</option>
+              <option value="zh-CN-shaanxi-XiaoniNeural">🛡️ 晓妮 (陕西女)</option>
+            </select>
             <button class="danmaku-history-toggle-btn" title="开启/关闭历史弹幕记录">
               <i class='bx bx-comment-detail'></i>
             </button>
@@ -205,6 +217,7 @@ export class LiveModule {
       danmakuBar: cardEl.querySelector('.live-danmaku-control-bar'),
       danmakuToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-toggle-btn'),
       danmakuVoiceToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-toggle-btn'),
+      danmakuVoiceSelect: cardEl.querySelector('.live-danmaku-control-bar .danmaku-voice-select'),
       danmakuHistoryToggleBtn: cardEl.querySelector('.live-danmaku-control-bar .danmaku-history-toggle-btn'),
       danmakuNicknameInput: cardEl.querySelector('.danmaku-nickname-input'),
       danmakuInput: cardEl.querySelector('.danmaku-input'),
@@ -270,6 +283,29 @@ export class LiveModule {
       elements
     };
 
+    // 初始化语音音色
+    const card = this.activeCards[matchId];
+    const savedVoice = localStorage.getItem('live_danmaku_voice') || 'zh-CN-YunjianNeural';
+    if (elements.danmakuVoiceSelect) {
+      elements.danmakuVoiceSelect.value = savedVoice;
+      elements.danmakuVoiceSelect.disabled = !card.danmakuVoiceEnabled;
+      
+      elements.danmakuVoiceSelect.addEventListener('change', (e) => {
+        const newVoice = e.target.value;
+        localStorage.setItem('live_danmaku_voice', newVoice);
+        
+        // 遍历所有正在直播的卡片，同步下拉框选中值
+        Object.keys(this.activeCards).forEach(id => {
+          const c = this.activeCards[id];
+          if (c && c.elements && c.elements.danmakuVoiceSelect) {
+            c.elements.danmakuVoiceSelect.value = newVoice;
+          }
+        });
+        
+        this.showTickerMessage(matchId, "🗣️ 已切换弹幕语音音色");
+      });
+    }
+
     // 绑定全屏切换按钮事件
     elements.fullscreenBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -307,7 +343,6 @@ export class LiveModule {
     cardEl.addEventListener('webkitfullscreenchange', handleFsChange);
 
     // === 弹幕交互事件绑定 ===
-    const card = this.activeCards[matchId];
 
     // 1. 弹幕显示/隐藏切换
     elements.danmakuToggleBtn.addEventListener('click', (e) => {
@@ -335,11 +370,32 @@ export class LiveModule {
         if (card.danmakuVoiceEnabled) {
           elements.danmakuVoiceToggleBtn.classList.add('active');
           if (icon) icon.className = 'bx bx-volume-full';
+          if (elements.danmakuVoiceSelect) elements.danmakuVoiceSelect.disabled = false;
           this.showTickerMessage(matchId, "🔊 弹幕语音已开启");
         } else {
           elements.danmakuVoiceToggleBtn.classList.remove('active');
           if (icon) icon.className = 'bx bx-volume-mute';
+          if (elements.danmakuVoiceSelect) elements.danmakuVoiceSelect.disabled = true;
           this.showTickerMessage(matchId, "🔇 弹幕语音已关闭");
+          // 关闭时过滤掉该场比赛积压的待播语音
+          this.speechQueue = this.speechQueue.filter(item => item.matchId !== matchId);
+          // 若当前正在读该场比赛的弹幕，则立即截断
+          if (this.currentAudio && this.currentAudioMatchId === matchId) {
+            console.log(`🔇 弹幕语音已关闭，立即中断当前比赛 [${matchId}] 的语音播报`);
+            try {
+              this.currentAudio.pause();
+            } catch (err) {
+              console.warn(err);
+            }
+            this.currentAudio = null;
+            this.currentAudioMatchId = null;
+            this.isSpeaking = false;
+            this.isSpeakingProcessing = false;
+            // 稍后继续播报其他场次的语音
+            setTimeout(() => {
+              this.processSpeechQueue();
+            }, 100);
+          }
         }
       });
     }
@@ -1029,24 +1085,26 @@ export class LiveModule {
   // 发送弹幕消息到 WebSocket 服务端
   sendDanmakuMessage(matchId, text, color, nickname, isManual) {
     const card = this.activeCards[matchId];
+    const voice = localStorage.getItem('live_danmaku_voice') || 'zh-CN-YunjianNeural';
     if (this.app && typeof this.app.sendWsMessage === 'function') {
       this.app.sendWsMessage('DANMAKU', {
         matchId,
         text,
         color,
         nickname,
-        isManual
+        isManual,
+        voice
       });
       // 无论服务器是否原样弹回，发送者本地直接进行语音播报，体验更即时
       if (isManual && nickname && card && card.danmakuVoiceEnabled) {
-        this.speakDanmaku(nickname, text);
+        this.speakDanmaku(matchId, nickname, text, voice);
       }
     } else {
       // 兜底本地渲染
-      this.renderDanmakuHistoryItem(matchId, { matchId, text, color, nickname, isManual, time: Date.now() });
+      this.renderDanmakuHistoryItem(matchId, { matchId, text, color, nickname, isManual, voice, time: Date.now() });
       this.renderDanmaku(matchId, text, color);
       if (isManual && nickname && card && card.danmakuVoiceEnabled) {
-        this.speakDanmaku(nickname, text);
+        this.speakDanmaku(matchId, nickname, text, voice);
       }
     }
   }
@@ -1092,7 +1150,7 @@ export class LiveModule {
 
   // 接收到服务器广播的弹幕消息
   onDanmakuReceived(payload) {
-    const { matchId, text, color, nickname, isManual } = payload;
+    const { matchId, text, color, nickname, isManual, voice } = payload;
     const card = this.activeCards[matchId];
     if (!card) return;
 
@@ -1104,43 +1162,93 @@ export class LiveModule {
     this.renderDanmaku(matchId, text, color);
 
     if (isManual && nickname && card.danmakuVoiceEnabled) {
-      this.speakDanmaku(nickname, text);
+      this.speakDanmaku(matchId, nickname, text, voice);
     }
   }
 
-  // 使用系统语音朗读高能弹幕
-  speakDanmaku(nickname, text) {
+  // 使用系统语音朗读高能弹幕（已改为服务端 TTS 高音质男声与队列顺序播报）
+  speakDanmaku(matchId, nickname, text, voice) {
     const voiceKey = `${nickname}-${text}`;
     if (this.lastSpoken === voiceKey) return; // 防重复播报
     this.lastSpoken = voiceKey;
     setTimeout(() => { if (this.lastSpoken === voiceKey) this.lastSpoken = null; }, 5000);
 
-    if ('speechSynthesis' in window) {
-      try {
-        // 如果是首次调用，可能需要重新获取一下 voices
-        let voices = window.speechSynthesis.getVoices();
-        
-        const msg = new SpeechSynthesisUtterance(`${nickname}说：${text}`);
-        msg.lang = 'zh-CN';
-        msg.rate = 1.1; // 语速稍快一点，更有弹幕的节奏感
-        msg.pitch = 0.6; // 默认拉低音高，把普通女声压成类似低沉的男声（伪男声）
+    // 限制队列最大长度为 30，过多的弹幕直接丢弃，防止高并发卡顿及声音无限堆积
+    if (this.speechQueue.length >= 30) {
+      console.log('🔊 TTS 语音队列已满，丢弃该条语音：', text);
+      return;
+    }
 
-        // 尝试寻找系统中的纯正中文男声
-        if (voices && voices.length > 0) {
-          const maleVoice = voices.find(v => 
-            v.lang.includes('zh') && 
-            /(Kangkang|Yunxi|Yunjian|Liao|男|Male)/i.test(v.name)
-          );
-          if (maleVoice) {
-            msg.voice = maleVoice;
-            msg.pitch = 1.0; // 如果找到了纯正男声，恢复正常音高
-          }
+    this.speechQueue.push({ matchId, nickname, text, voice });
+
+    // 若当前未在播放，启动播放队列
+    if (!this.isSpeaking) {
+      this.processSpeechQueue();
+    }
+  }
+
+  // 顺序播放语音队列中的音频
+  processSpeechQueue() {
+    // 增加并发进入的保护锁
+    if (this.isSpeakingProcessing) return;
+    this.isSpeakingProcessing = true;
+
+    try {
+      if (this.speechQueue.length === 0) {
+        this.isSpeaking = false;
+        this.isSpeakingProcessing = false;
+        return;
+      }
+
+      this.isSpeaking = true;
+      const { matchId, nickname, text, voice } = this.speechQueue.shift();
+
+      // 限制单句播报长度，截取前 40 个字
+      const formatText = `${nickname}说：${text}`.substring(0, 40);
+      const activeVoice = voice || 'zh-CN-YunjianNeural';
+      const audioUrl = `/api/tts?text=${encodeURIComponent(formatText)}&voice=${activeVoice}`;
+
+      const audio = new Audio(audioUrl);
+      this.currentAudio = audio;
+      this.currentAudioMatchId = matchId;
+
+      let hasCleanedUp = false;
+      const cleanupAndNext = () => {
+        if (hasCleanedUp) return;
+        hasCleanedUp = true;
+
+        audio.onended = null;
+        audio.onerror = null;
+
+        if (this.currentAudio === audio) {
+          this.currentAudio = null;
+          this.currentAudioMatchId = null;
         }
 
-        window.speechSynthesis.speak(msg);
-      } catch (e) {
-        console.warn('TTS 语音播报失败', e);
-      }
+        this.isSpeaking = false;
+        this.isSpeakingProcessing = false;
+
+        // 稍微延迟 100 毫秒后播下一条，给用户体验更好的留白
+        setTimeout(() => {
+          this.processSpeechQueue();
+        }, 100);
+      };
+
+      audio.onended = cleanupAndNext;
+      
+      audio.onerror = (err) => {
+        console.warn('🔊 TTS 播放失败，自动跳过此条', err);
+        cleanupAndNext();
+      };
+
+      audio.play().catch(err => {
+        console.warn('🔊 播放音频被浏览器策略拦截或出错，跳过该条', err);
+        cleanupAndNext();
+      });
+    } catch (err) {
+      console.error('🔊 处理语音队列发生异常:', err);
+      this.isSpeaking = false;
+      this.isSpeakingProcessing = false;
     }
   }
 
