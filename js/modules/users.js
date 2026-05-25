@@ -238,15 +238,15 @@ export class UsersModule {
     const currentUsername = this.app.currentUser ? this.app.currentUser.username : null;
 
     if (users.length === 0) {
-      this.tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">暂无其他注册用户</td></tr>`;
-      this.mobileGrid.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">暂无其他注册用户</div>`;
+      this.tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);"><i class='bx bx-loader-alt bx-spin' style='font-size: 1.5rem; margin-bottom: 0.5rem;'></i><br>暂无其他注册用户</td></tr>`;
+      this.mobileGrid.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-secondary);"><i class='bx bx-loader-alt bx-spin' style='font-size: 1.5rem; margin-bottom: 0.5rem;'></i><br>暂无其他注册用户</div>`;
       return;
     }
 
     // 1. 渲染桌面表格
     this.tbody.innerHTML = users.map(user => {
       const roleText = user.role === 'admin' ? '管理员' : '球员';
-      const dateStr = user.created_at ? new Date(user.created_at).toLocaleString() : '-';
+      const dateStr = this.formatDateTime(user.created_at);
       const isSelf = user.username === currentUsername;
       
       return `
@@ -269,7 +269,7 @@ export class UsersModule {
     // 2. 渲染移动端卡片列表
     this.mobileGrid.innerHTML = users.map(user => {
       const roleText = user.role === 'admin' ? '管理员' : '球员';
-      const dateStr = user.created_at ? new Date(user.created_at).toLocaleString() : '-';
+      const dateStr = this.formatDateTime(user.created_at);
       const isSelf = user.username === currentUsername;
 
       return `
@@ -294,5 +294,16 @@ export class UsersModule {
         </div>
       `;
     }).join('');
+  }
+
+  formatDateTime(utcStr) {
+    if (!utcStr) return '-';
+    let parsedStr = utcStr;
+    // 如果 SQLite 的时间字符串没有包含 T 且没有以 Z 结尾，说明需要加上 Z 作为 UTC 时间戳，以便浏览器转换为正确的本地时区
+    if (!parsedStr.includes('T') && !parsedStr.includes('Z')) {
+      parsedStr = parsedStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(parsedStr);
+    return isNaN(d.getTime()) ? utcStr : d.toLocaleString();
   }
 }
