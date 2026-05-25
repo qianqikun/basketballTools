@@ -130,7 +130,14 @@ const getAllUsers = () => {
   return new Promise((resolve, reject) => {
     db.all(`SELECT id, username, nickname, role, created_at FROM users ORDER BY id DESC`, [], (err, rows) => {
       if (err) return reject(err);
-      resolve(rows);
+      // 将 SQLite 默认不含时区后缀的 UTC 时间字符串转为标准 UTC ISO 时间戳格式 (添加 T 和 Z 后缀)
+      const processedRows = rows.map(row => {
+        if (row.created_at && !row.created_at.includes('T') && !row.created_at.includes('Z')) {
+          row.created_at = row.created_at.replace(' ', 'T') + 'Z';
+        }
+        return row;
+      });
+      resolve(processedRows);
     });
   });
 };
