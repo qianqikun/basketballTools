@@ -78,7 +78,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const passwordHash = db.hashPassword(password);
-    await db.createUser(username, nickname, passwordHash, 'referee');
+    await db.createUser(username, nickname, passwordHash, 'player');
     res.json({ success: true, message: '注册成功' });
   } catch (err) {
     console.error('注册失败:', err);
@@ -312,11 +312,121 @@ app.get('/api/store', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * 差分数据权限校验
+ * 限制只有管理员角色（'admin'）可以修改队伍列表（报名删除）、修改归档历史（pastTournaments）、手动重置或手动归档。
+ * 允许球员/普通裁判角色修改合法的当前进行中比赛数据。
+ */
+function validateStoreChange(oldStore, newStore, role) {
+  // 向下兼容：如果用户的角色是 admin，则绿灯通行；其他角色（包括 player 和老数据的 referee）都需要经过严格校验
+  if (role === 'admin') return { valid: true };
+
+  // 1. 检查 teams (报名管理及队伍删除)
+  const oldTeams = oldStore.teams || [];
+  const newTeams = newStore.teams || [];
+  if (JSON.stringify(oldTeams) !== JSON.stringify(newTeams)) {
+    return { valid: false, error: '权限不足，仅系统管理员可进行报名登记与删除队伍操作' };
+  }
+
+  // 2. 检查 pastTournaments (归档历史及重置)
+  const oldPast = oldStore.pastTournaments || [];
+  const newPast = newStore.pastTournaments || [];
+  if (JSON.stringify(oldPast) !== JSON.stringify(newPast)) {
+    return { valid: false, error: '权限不足，仅系统管理员可删除或修改历史归档记录' };
+  }
+
+  // 3. 检查 tournament (当前赛程)
+  const oldT = oldStore.tournament;
+  const newT = newStore.tournament;
+
+  // 3.1 归档与清空检查：旧赛程存在，但新赛程被置为 null（代表发生了归档或大面积清空重置）
+  if (oldT && !newT) {
+    return { valid: false, error: '权限不足，仅系统管理员可执行赛程归档或重置操作' };
+  }
+
+  // 3.2 抽签与重新抽签检查：
+  const oldMatches = (oldT && oldT.currentMatches) || [];
+  const newMatches = (newT && newT.currentMatches) || [];
+  
+  // 抽签：新数据突然生成了比赛，而原本没有比赛
+  if (oldMatches.length === 0 && newMatches.length > 0) {
+    return { valid: false, error: '权限不足，仅系统管理员可执行随机抽签创建对阵' };
+  }
+
+  // 3.3 如果轮次被非管理员手动改动
+  if (oldT && newT && oldT.round !== newT.round) {
+    // 完赛自动推进机制放行：如果旧比赛列表中的所有比赛均已完赛，且新比赛列表置空，这是系统合法的阶段推进，允许放行。
+    const oldAllCompleted = oldMatches.length > 0 && oldMatches.every(m => m.completed);
+    const newMatchesCleared = newMatches.length === 0;
+    const isNormalProgression = oldAllCompleted && newMatchesCleared && newT.round === oldT.round + 1;
+    
+    if (!isNormalProgression) {
+      return { valid: false, error: '权限不足，仅系统管理员可手动修改或重置赛程轮次' };
+    }
+  }
+
+  // 3.4 检查正在进行的对阵列表是否被篡改（长度或对阵队伍ID变更）
+  if (oldT && newT && oldMatches.length > 0 && newMatches.length > 0) {
+    if (oldMatches.length !== newMatches.length) {
+      return { valid: false, error: '权限不足，仅系统管理员可手动变更比赛对阵结构' };
+    }
+    for (let i = 0; i < oldMatches.length; i++) {
+      if (oldMatches[i].id !== newMatches[i].id || 
+          (oldMatches[i].team1 && newMatches[i].team1 && oldMatches[i].team1.id !== newMatches[i].team1.id) ||
+          (oldMatches[i].team2 && newMatches[i].team2 && oldMatches[i].team2.id !== newMatches[i].team2.id)) {
+        return { valid: false, error: '权限不足，仅系统管理员可修改对阵球队信息' };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 // 保存数据
 app.post('/api/store', requireAuth, async (req, res) => {
   try {
     const dataObj = req.body;
+    
+    // 获取当前在数据库里的旧数据
+    const oldData = await db.getData();
+    
+    // 进行敏感操作安全性差分校验
+    const checkResult = validateStoreChange(oldData, dataObj, req.session.role);
+    if (!checkResult.valid) {
+      console.warn(`🔒 越权数据修改拦截: 用户 ${req.session.username} (Role: ${req.session.role}) 尝试执行敏感修改被拦截: ${checkResult.error}`);
+      return res.status(403).json({ success: false, error: checkResult.error });
+    }
+
     await db.saveData(dataObj);
+
+    // 🚨 核心同步：后端根据保存的真实赛程数据状态，同步清理 WebSocket 内存中的直播间，防止“僵尸直播间”残留
+    if (typeof globalLiveMatches !== 'undefined' && typeof broadcast === 'function') {
+      if (!dataObj.tournament) {
+        // 如果赛程变为了 null（已被归档或未初始化），则清空所有正在进行的直播
+        if (Object.keys(globalLiveMatches).length > 0) {
+          console.log('📝 后端检测到赛程归档（tournament为null），自动清空所有实时直播间状态');
+          globalLiveMatches = {};
+          broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+        }
+      } else {
+        // 如果赛程仍在进行，但部分比赛被剔除（比如重新抽签、比赛不再属于 currentMatches 等）
+        if (dataObj.tournament.currentMatches) {
+          const activeMatchIds = new Set(dataObj.tournament.currentMatches.map(m => m.id));
+          let changed = false;
+          Object.keys(globalLiveMatches).forEach(mid => {
+            if (!activeMatchIds.has(mid)) {
+              console.log(`📝 后端检测到比赛 [${mid}] 不在当前赛程进行中对阵中，自动从直播列表中删除`);
+              delete globalLiveMatches[mid];
+              changed = true;
+            }
+          });
+          if (changed) {
+            broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+          }
+        }
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Failed to save data:', err);

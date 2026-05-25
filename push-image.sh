@@ -90,6 +90,8 @@ services:
       - NODE_ENV=production
       - DATA_DIR=/app/data
       - PORT=3000
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
     volumes:
       - ./data:/app/data
     logging:
@@ -97,6 +99,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  srs-live:
+    image: hub.rat.dev/ossrs/srs:5
+    container_name: srs-live
+    restart: unless-stopped
+    ports:
+      - "1935:1935"
+      - "1985:1985"
+      - "18000:18000/udp"
+      - "18080:8080"
+    environment:
+      - SRS_RTC_SERVER_LISTEN=18000
+      - SRS_RTC_SERVER_CANDIDATE=\${SRS_CANDIDATE:-127.0.0.1}
 EOF
 
 echo -e "✅ ${GREEN}已成功生成 [docker-compose.prod.yml] 文件！${NC}"

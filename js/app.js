@@ -442,6 +442,10 @@ class App {
 
     // 绑定全局重置事件
     document.getElementById('reset-all-btn').addEventListener('click', async () => {
+      if (!this.currentUser || this.currentUser.role !== 'admin') {
+        alert('权限不足，仅系统管理员可执行重置操作！');
+        return;
+      }
       if(confirm('警告：这将会清除所有报名队伍和比赛记录！确定要继续吗？')) {
         await this.saveStore('teams', []);
         await this.saveStore('tournament', null);
@@ -470,6 +474,10 @@ class App {
           clickCount = 0;
           const code = prompt('🔑 进入系统高级控制：请输入管理员重置暗号：');
           if (code === 'admin') {
+            if (!this.currentUser || this.currentUser.role !== 'admin') {
+              alert('❌ 权限不足！您必须使用系统管理员账号登录，才能执行高级重置操作！');
+              return;
+            }
             const resetBtn = document.getElementById('reset-all-btn');
             if (resetBtn) {
               resetBtn.click();
@@ -602,6 +610,15 @@ class App {
         navUsersBtn.style.display = 'flex';
       } else {
         navUsersBtn.style.display = 'none';
+      }
+    }
+
+    const resetAllBtn = document.getElementById('reset-all-btn');
+    if (resetAllBtn && this.currentUser) {
+      if (this.currentUser.role === 'admin') {
+        resetAllBtn.style.display = 'block';
+      } else {
+        resetAllBtn.style.display = 'none';
       }
     }
   }

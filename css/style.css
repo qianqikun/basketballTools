@@ -2924,35 +2924,44 @@ body.has-fullscreen-panel #live-active-matches {
   border-radius: 20px;
   width: 100%;
   max-width: 440px;
-  padding: 2.5rem;
+  padding: 1.75rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: fadeIn 0.4s ease-out;
 }
 
 .auth-logo {
-  text-align: center;
-  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
 }
 
 .auth-logo i {
-  font-size: 3.5rem;
+  font-size: 2.6rem;
   color: var(--primary-color);
   filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4));
-  margin-bottom: 0.5rem;
+}
+
+.auth-logo-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
 }
 
 .auth-logo h2 {
   font-family: 'Outfit', sans-serif;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: #fff;
   letter-spacing: 0.5px;
+  line-height: 1.1;
 }
 
 .auth-logo p {
   color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
 }
 
 .auth-form-wrapper h3 {
@@ -2967,8 +2976,8 @@ body.has-fullscreen-panel #live-active-matches {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
 }
 
 .form-group label {
@@ -2978,7 +2987,7 @@ body.has-fullscreen-panel #live-active-matches {
 }
 
 .form-group input {
-  padding: 0.8rem 1rem;
+  padding: 0.65rem 0.9rem;
   border-radius: 8px;
   border: 1px solid var(--panel-border);
   background-color: rgba(0, 0, 0, 0.2);
@@ -2997,9 +3006,9 @@ body.has-fullscreen-panel #live-active-matches {
 
 .auth-btn {
   width: 100%;
-  padding: 0.85rem;
+  padding: 0.75rem;
   font-size: 1rem;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
@@ -3188,7 +3197,7 @@ body.has-fullscreen-panel #live-active-matches {
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
-.role-badge.referee {
+.role-badge.player {
   background-color: rgba(59, 130, 246, 0.12);
   color: #3b82f6;
   border: 1px solid rgba(59, 130, 246, 0.25);
@@ -3322,15 +3331,15 @@ body.has-fullscreen-panel #live-active-matches {
   font-size: 0.75rem;
   color: var(--danger);
   margin-top: 0.25rem;
-  min-height: 1rem;
   opacity: 0;
   transform: translateY(-5px);
   transition: opacity 0.2s ease, transform 0.2s ease;
-  display: block;
+  display: none;
 }
 .error-msg.visible {
   opacity: 1;
   transform: translateY(0);
+  display: block;
 }
 .form-group input.invalid {
   border-color: var(--danger) !important;

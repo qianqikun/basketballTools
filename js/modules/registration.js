@@ -47,6 +47,11 @@ export class RegistrationModule {
   }
 
   deleteTeam(id) {
+    const isAdmin = this.app.currentUser && this.app.currentUser.role === 'admin';
+    if (!isAdmin) {
+      alert('权限不足，仅系统管理员可删除报名队伍！');
+      return;
+    }
     if (confirm('确定要删除该队伍吗？如果已开始抽签，可能会影响比赛进程。')) {
       let teams = this.app.store.teams || [];
       teams = teams.filter(t => t.id !== id);
@@ -64,12 +69,15 @@ export class RegistrationModule {
       return;
     }
     
+    const isAdmin = this.app.currentUser && this.app.currentUser.role === 'admin';
     this.list.innerHTML = teams.map(team => `
       <li class="team-item">
         <span>${team.name}</span>
+        ${isAdmin ? `
         <div class="team-item-actions">
           <button class="delete-btn" data-id="${team.id}"><i class='bx bx-trash'></i></button>
         </div>
+        ` : ''}
       </li>
     `).join('');
   }

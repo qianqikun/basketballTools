@@ -29,6 +29,11 @@ export class DrawModule {
   }
 
   endTournament() {
+    const isAdmin = this.app.currentUser && this.app.currentUser.role === 'admin';
+    if (!isAdmin) {
+      alert('权限不足，仅系统管理员可执行归档操作！');
+      return;
+    }
     const store = this.app.store;
     if (!store.tournament) return;
     
@@ -47,6 +52,11 @@ export class DrawModule {
           matches: JSON.parse(JSON.stringify(t.currentMatches)),
           isPartial: true
         });
+
+        // 🚨 核心修复：归档时通知 WS 服务端清除并关闭该赛程所有正在进行的直播看板
+        t.currentMatches.forEach(m => {
+          this.app.sendWsMessage('MATCH_END', { matchId: m.id });
+        });
       }
       
       store.pastTournaments.push(t);
@@ -54,12 +64,22 @@ export class DrawModule {
       
       // 重置当前赛程
       this.app.saveStore('tournament', null);
+      
+      // 额外清理本地可能缓存的活动比赛ID，避免对新赛程的加载造成干扰
+      localStorage.removeItem('hoops_manager_live_match');
+      localStorage.removeItem('hoops_manager_active_match_id');
+
       this.render();
       alert('当前赛程已结束并归档。您可以继续随机抽签开启新赛程！');
     }
   }
 
   drawLots() {
+    const isAdmin = this.app.currentUser && this.app.currentUser.role === 'admin';
+    if (!isAdmin) {
+      alert('权限不足，仅系统管理员可执行随机抽签！');
+      return;
+    }
     const store = this.app.store;
     // 如果没有初始化 tournament 对象
     if (!store.tournament) {
@@ -157,18 +177,19 @@ export class DrawModule {
 
   render() {
     const t = this.app.store.tournament;
+    const isAdmin = this.app.currentUser && this.app.currentUser.role === 'admin';
     
     // 如果已经决出冠军
     if (t && t.activeTeams && t.activeTeams.length === 1) {
       this.roundTitle.textContent = `🏆 比赛结束 冠军：${t.activeTeams[0].name}`;
       this.drawBtn.style.display = 'none';
-      this.endBtn.style.display = 'block';
+      this.endBtn.style.display = isAdmin ? 'block' : 'none';
       this.endBtn.innerHTML = "<i class='bx bx-archive-in'></i> 归档本届赛程";
       this.container.innerHTML = `
         <div class="empty-state" style="border-color: var(--primary-color);">
           <i class='bx bxs-trophy' style="color: var(--primary-color); font-size: 4rem;"></i>
           <p style="font-size: 1.5rem; color: #fff; margin: 1rem 0;">冠军诞生：${t.activeTeams[0].name}</p>
-          <p>请点击右上角按钮归档本届赛程，以便在历史记录中永久保存</p>
+          <p>${isAdmin ? '请点击右上角按钮归档本届赛程，以便在历史记录中永久保存' : '请等待系统管理员归档本届赛程'}</p>
         </div>
       `;
       this.renderHistoryRounds();
@@ -177,21 +198,21 @@ export class DrawModule {
 
     if (!t || (!t.currentMatches || t.currentMatches.length === 0)) {
       this.roundTitle.textContent = '等待抽签';
-      this.drawBtn.style.display = 'inline-flex';
+      this.drawBtn.style.display = isAdmin ? 'inline-flex' : 'none';
       this.drawBtn.disabled = false;
       this.endBtn.style.display = 'none';
       this.container.innerHTML = `
         <div class="empty-state">
           <i class='bx bx-box'></i>
-          <p>暂无对阵信息，请先进行抽签开启赛程</p>
+          <p>${isAdmin ? '暂无对阵信息，请先进行抽签开启赛程' : '暂无对阵信息，请等待管理员抽签开启比赛'}</p>
         </div>
       `;
       this.renderHistoryRounds();
       return;
     }
 
-    this.drawBtn.style.display = 'inline-flex';
-    this.endBtn.style.display = 'block';
+    this.drawBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    this.endBtn.style.display = isAdmin ? 'block' : 'none';
     this.endBtn.innerHTML = "<i class='bx bx-archive-in'></i> 结束并归档赛程";
     this.roundTitle.textContent = `第 ${t.round} 轮`;
 

@@ -39,7 +39,7 @@ db.serialize(() => {
       username TEXT UNIQUE NOT NULL,
       nickname TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'referee',
+      role TEXT NOT NULL DEFAULT 'player',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `, () => {
@@ -104,7 +104,7 @@ const saveData = (dataObj) => {
 };
 
 // 新增用户操作数据库接口
-const createUser = (username, nickname, passwordHash, role = 'referee') => {
+const createUser = (username, nickname, passwordHash, role = 'player') => {
   return new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO users (username, nickname, password_hash, role) VALUES (?, ?, ?, ?)`,
