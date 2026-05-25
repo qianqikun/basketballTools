@@ -1,0 +1,147 @@
+/* UsersPanel Page Styles */
+/* ==========================================================================
+   用户管理表格 (User Management Table)
+   ========================================================================== */
+.users-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.user-list-card {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--card-shadow);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.user-table th,
+.user-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.user-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.user-table td {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.user-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.role-badge.admin {
+  background-color: rgba(249, 115, 22, 0.12);
+  color: var(--primary-color);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+.role-badge.player {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.action-btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btns button {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  font-weight: 600;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ==========================================================================
+   移动端卡片式表格 (User Cards Grid for Mobile)
+   ========================================================================== */
+.user-cards-grid {
+  display: none;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.user-mobile-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.user-mobile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-mobile-name {
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.user-mobile-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.user-mobile-row span:last-child {
+  color: var(--text-primary);
+}
+
+.user-mobile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+
+/* Mobile Overrides */
+@media (max-width: 768px) {
+  .table-responsive {
+    display: none;
+  }
+  .user-cards-grid {
+    display: grid;
+  }
+}

@@ -1,0 +1,1381 @@
+/* LiveViewer Page Styles */
+/* 实时观战多卡片容器（多场比赛上下堆叠排列） */
+.live-matches-container {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  width: 100%;
+}
+
+.live-scoreboard-panel {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+  position: relative;
+  overflow: hidden;
+  margin-top: 16px;
+  touch-action: manipulation;
+}
+
+.live-scoreboard-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, var(--primary-color));
+}
+
+/* 消息跑马灯 */
+.live-ticker-wrap {
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 24px;
+  margin-bottom: 32px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.live-ticker-message {
+  font-size: 15px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+  animation: pulse-glow 2s infinite ease-in-out;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 0.8;
+    text-shadow: 0 0 5px rgba(56, 189, 248, 0.2);
+  }
+
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+  }
+}
+
+.live-scoreboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.live-round-tag {
+  font-size: 18px;
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.live-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--success);
+  background-color: rgba(34, 197, 94, 0.1);
+  padding: 8px 16px;
+  border-radius: 99px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulse-dot-anim 1.5s infinite;
+}
+
+@keyframes pulse-dot-anim {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.live-scoreboard-body {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.live-team-card {
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.live-team-card.home {
+  border-bottom: 4px solid var(--primary-color);
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.05);
+}
+
+.live-team-card.away {
+  border-bottom: 4px solid #3b82f6;
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.05);
+}
+
+.live-team-name {
+  font-size: 35px;
+  font-weight: 800;
+  margin-bottom: 24px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.live-score-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 160px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 32px;
+}
+
+.live-team-card.home .live-score-value {
+  color: var(--primary-color);
+  text-shadow: 0 0 30px rgba(249, 115, 22, 0.25);
+}
+
+.live-team-card.away .live-score-value {
+  color: #3b82f6;
+  text-shadow: 0 0 30px rgba(59, 130, 246, 0.25);
+}
+
+.live-stats-bar {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+}
+
+.live-stat-box {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-stat-box .label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.live-stat-box .value {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* 中央时间 */
+.live-center-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-period {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 8px 24px;
+  border-radius: 99px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.live-timer-clock {
+  font-family: 'Outfit', sans-serif;
+  font-size: 112px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 25px rgba(255, 255, 255, 0.2);
+  margin-bottom: 24px;
+}
+
+.live-timer-state {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.03);
+  padding: 6px 19px;
+  border-radius: 6px;
+}
+
+
+/* Video Stream & Volume controls */
+/* ========================================== */
+/* 观众大屏端 WebRTC 视频直播布局排版           */
+/* ========================================== */
+
+/* 普通分栏状态下的双栏排布 (仅当卡片有直播时生效) */
+.live-scoreboard-panel.has-live .live-scoreboard-content {
+  display: flex;
+  flex-direction: column;
+  /* 改为上下排列 */
+  gap: 1.5rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+/* 视频容器盒子 */
+.live-video-wrapper {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  height: 420px;
+  /* 普通模式下，控制视频展示高度以适应一屏内 */
+  max-width: 960px;
+  /* 限制最大宽度，防止横向过度拉伸 */
+  width: 100%;
+  margin: 0 auto;
+  /* 居中对齐 */
+  transition: var(--transition);
+}
+
+.live-video-wrapper video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* 采用 contain 保持球场完整全貌 */
+  display: block;
+}
+
+/* 视频加载占位/无信号提示 */
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--text-secondary);
+  z-index: 2;
+  transition: opacity 0.5s ease;
+}
+
+.video-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-overlay i {
+  font-size: 3rem;
+  color: var(--primary-color);
+  animation: blink 2s infinite;
+}
+
+/* 全屏/退出全屏切换按钮 */
+.fullscreen-toggle-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: var(--transition);
+}
+
+.fullscreen-toggle-btn:hover {
+  opacity: 1;
+  background: var(--primary-color);
+  transform: scale(1.1);
+}
+
+/* 声音控制切换按钮 (新增) */
+.volume-toggle-btn {
+  position: absolute;
+  top: 1rem;
+  right: 4rem;
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: var(--transition);
+}
+
+.volume-toggle-btn:hover {
+  opacity: 1;
+  background: var(--primary-color);
+  transform: scale(1.1);
+}
+
+/* 右侧比分数据板块 (在带直播时需适配宽度和网格布局) */
+.live-scoreboard-panel.has-live .live-scoreboard-body {
+  width: 100%;
+  height: auto;
+  /* 高度自适应，不再限死 420px */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* 视频直播启用时微缩内部元素防溢出 */
+.live-scoreboard-panel.has-live .live-team-name {
+  font-size: 1.7rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.live-scoreboard-panel.has-live .live-score-value {
+  font-size: 5.5rem !important;
+}
+
+.live-scoreboard-panel.has-live .live-team-card {
+  padding: 1.2rem 1.5rem !important;
+  border-radius: 12px !important;
+}
+
+.live-scoreboard-panel.has-live .live-timer-clock {
+  font-size: 3.2rem !important;
+}
+
+.live-scoreboard-panel.has-live .live-center-col {
+  padding: 0 1rem !important;
+}
+
+/* ========================================== */
+
+/* Fullscreen PIP & Mobile Landscape modes */
+/* 全屏沉浸模式 (画中画效果)                  */
+/* ========================================== */
+
+/* ========================================== */
+/* 全屏沉浸模式 (画中画效果)                  */
+/* ========================================== */
+
+/* 伪全屏与原生全屏状态下，比赛卡片作为最外层撑满全屏 */
+.live-scoreboard-panel.live-fullscreen-mode,
+.live-scoreboard-panel:fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  z-index: 9999 !important;
+  background: #000 !important;
+  padding: 0 !important;
+  border: none !important;
+  display: block !important;
+  /* 解除普通的 flex 分栏，启用绝对定位 */
+}
+
+/* 移动端 3D 旋转伪横屏全屏，旋转 90 度以高宽互换填充屏幕 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vh !important;  /* Fallback */
+  width: 100dvh !important; /* 动态响应地址栏高度，避免被底部导航栏盖住 */
+  height: 100vw !important; 
+  height: 100dvw !important;
+  max-width: 100vh !important;
+  max-width: 100dvh !important;
+  max-height: 100vw !important;
+  max-height: 100dvw !important;
+  transform: rotate(90deg) translateY(-100%) !important;
+  transform-origin: top left !important;
+  z-index: 99999 !important;
+  background: #000 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: block !important;
+}
+
+/* 伪横屏全屏下的局部微调，释放屏幕空间 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-body {
+  top: 0.5rem !important;
+  right: 1.5rem !important;
+  width: 240px !important;
+  padding: 0.4rem 0.25rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .fullscreen-toggle-btn {
+  top: 0.5rem !important;
+  left: 0.5rem !important;
+  right: auto !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .volume-toggle-btn {
+  top: 0.5rem !important;
+  left: 3.5rem !important;
+  right: auto !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-danmaku-control-bar {
+  bottom: 0.25rem !important;
+  min-width: 300px !important;
+  width: 95% !important;
+  gap: 0.3rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-shortcuts {
+  /* 横屏全屏下改为横向可滚动的单行展示，不换行以节省高度 */
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  justify-content: flex-start !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  padding-bottom: 2px; /* 防止 scrollbar 遮住内容 */
+  margin-bottom: 0 !important;
+  gap: 0.35rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-shortcuts::-webkit-scrollbar {
+  display: none; /* 隐藏滚动条，保持视觉干净 */
+}
+
+/* 横屏全屏下快捷词胶囊微缩，适配横屏紧凑空间 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-shortcut-item {
+  padding: 0.15rem 0.5rem !important;
+  font-size: 0.7rem !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-item {
+  font-size: 0.95rem !important;
+}
+
+/* 当有全屏大屏面板展示时，禁止页面背景滚动，隐藏侧边栏和头部，并把主体容器拉满 */
+body.has-fullscreen-panel {
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+body.has-fullscreen-panel .sidebar,
+body.has-fullscreen-panel .section-header {
+  display: none !important;
+}
+
+body.has-fullscreen-panel .main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 99999 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+body.has-fullscreen-panel .view-section {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+body.has-fullscreen-panel #live-active-matches {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+
+/* 全屏状态下解除包裹容器的位置和布局限制 */
+.live-scoreboard-panel.live-fullscreen-mode .live-scoreboard-content,
+.live-scoreboard-panel:fullscreen .live-scoreboard-content,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-content {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+/* 全屏状态下的视频：拉满铺底 */
+.live-scoreboard-panel.live-fullscreen-mode .live-video-wrapper,
+.live-scoreboard-panel:fullscreen .live-video-wrapper,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-video-wrapper {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;  /* 解除普通模式下的 960px 宽度限制 */
+  max-height: none !important; /* 解除普通模式下的高度限制 */
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: 1 !important;
+}
+
+.live-scoreboard-panel.live-fullscreen-mode video,
+.live-scoreboard-panel:fullscreen video,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  /* 网页全屏下采用 contain 防止被裁切，并在背景填充黑色 */
+  background: #000;
+}
+
+/* 全屏状态下的比分数据看板：半透明毛玻璃悬浮在右上角 */
+.live-scoreboard-panel.live-fullscreen-mode .live-scoreboard-body,
+.live-scoreboard-panel:fullscreen .live-scoreboard-body {
+  position: absolute !important;
+  top: 1.5rem !important;
+  right: 8rem !important; /* 原为 5.5rem，向左偏移以容纳声音和全屏按钮 */
+  width: 280px !important;
+  /* 更精简版宽度 */
+  height: auto !important;
+  /* 允许自适应缩减后的高度 */
+  z-index: 10 !important;
+  background: rgba(15, 23, 42, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 16px !important;
+  padding: 0.75rem 0.5rem !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5) !important;
+  
+  /* 强制在全屏悬浮模式下开启极小 Grid 限制，以防继承 has-live 的大间距导致错乱 */
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  gap: 0.25rem !important;
+  align-items: center !important;
+}
+
+/* 全屏状态下的切换/退出按钮：提到最高层级并固定在最右上角，与左侧的记分牌完美并排 */
+.live-scoreboard-panel.live-fullscreen-mode .fullscreen-toggle-btn,
+.live-scoreboard-panel:fullscreen .fullscreen-toggle-btn {
+  position: absolute !important;
+  top: 1.5rem !important;
+  right: 1.5rem !important;
+  z-index: 20 !important;
+}
+
+/* 全屏状态下的声音控制按钮 */
+.live-scoreboard-panel.live-fullscreen-mode .volume-toggle-btn,
+.live-scoreboard-panel:fullscreen .volume-toggle-btn {
+  position: absolute !important;
+  top: 1.5rem !important;
+  right: 4.5rem !important;
+  z-index: 20 !important;
+}
+
+/* 全屏微缩面板下的内容字体缩小适配 */
+.live-fullscreen-mode .live-team-card,
+.live-scoreboard-panel:fullscreen .live-team-card {
+  padding: 0.25rem !important;
+  background: transparent !important;
+  border: none !important;
+  min-width: 0 !important;
+}
+
+.live-fullscreen-mode .live-team-name,
+.live-scoreboard-panel:fullscreen .live-team-name {
+  font-size: 0.85rem !important;
+  margin-bottom: 0.1rem !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.live-fullscreen-mode .live-score-value,
+.live-scoreboard-panel:fullscreen .live-score-value {
+  font-size: 2.0rem !important;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.2) !important;
+  margin-bottom: 0 !important;
+  line-height: 1.1 !important;
+}
+
+.live-fullscreen-mode .live-center-col,
+.live-scoreboard-panel:fullscreen .live-center-col {
+  padding: 0 0.1rem !important;
+  min-width: 70px !important;
+}
+
+.live-fullscreen-mode .live-period,
+.live-scoreboard-panel:fullscreen .live-period {
+  font-size: 0.65rem !important;
+  padding: 0.1rem 0.3rem !important;
+  margin-bottom: 0.1rem !important;
+}
+
+.live-fullscreen-mode .live-timer-clock,
+.live-scoreboard-panel:fullscreen .live-timer-clock {
+  font-size: 1.2rem !important;
+  line-height: 1.1 !important;
+  margin-bottom: 0.1rem !important;
+}
+
+.live-fullscreen-mode .live-timer-state,
+.live-scoreboard-panel:fullscreen .live-timer-state {
+  font-size: 0.6rem !important;
+  padding: 0.05rem 0.2rem !important;
+}
+
+/* 隐藏全屏后非核心的大面板犯规暂停数据，保持极度紧凑 */
+.live-fullscreen-mode .live-stats-bar,
+.live-scoreboard-panel:fullscreen .live-stats-bar {
+  display: none !important;
+}
+
+/* 全屏下的大屏头部和滚动事件栏隐藏 */
+.live-fullscreen-mode .live-ticker-wrap,
+.live-scoreboard-panel:fullscreen .live-ticker-wrap {
+  display: none !important;
+}
+
+.live-fullscreen-mode .live-scoreboard-header,
+.live-scoreboard-panel:fullscreen .live-scoreboard-header {
+  display: none !important;
+}
+
+/* ========================================== */
+
+/* Mobile Landscape responsive layout */
+@media (max-width: 992px) {
+/* 响应式媒体查询：移动端下的视频折行表现       */
+/* ========================================== */
+@media (max-width: 992px) {
+  .live-scoreboard-panel.has-live .live-scoreboard-content {
+    flex-direction: column !important;
+    /* 窄屏/移动端下上下折行 */
+    gap: 1.5rem;
+  }
+
+  .live-video-wrapper {
+    height: 240px;
+    /* 移动端普通状态下限制视频高度 */
+  }
+
+  .live-scoreboard-panel.has-live .live-scoreboard-body {
+    height: auto;
+    /* 允许自适应 */
+  }
+}
+
+}
+
+/* Mobile Landscape details micro overrides */
+@media (max-width: 768px) {
+  .live-settings-accordion {
+    margin-bottom: 1rem;
+  }
+
+  .accordion-header {
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .accordion-content {
+    padding: 0 1rem 1rem 1rem;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .input-group {
+    margin-left: 0 !important;
+  }
+
+  .live-video-wrapper {
+    height: 200px;
+  }
+}
+
+/* ======================================================= */
+/* 📱 移动端且处于带直播状态下的比分看板极致微缩适配（防挤压溢出） */
+/* ======================================================= */
+
+/* Micro Micro Mobile Portrait overrides */
+@media (max-width: 768px) {
+  /* 隐藏非核心的犯规与暂停，省出极宝宽度和高度 */
+  .live-scoreboard-panel.has-live .live-stats-bar {
+    display: none !important;
+  }
+  
+  /* 调整比分板网格间距 */
+  .live-scoreboard-panel.has-live .live-scoreboard-body {
+    grid-template-columns: 1fr auto 1fr !important;
+    gap: 3px !important;
+    padding: 4px !important;
+  }
+  
+  /* 极度压缩两边队伍卡片 */
+  .live-scoreboard-panel.has-live .live-team-card {
+    padding: 6px 3px !important;
+    border-radius: 8px !important;
+    min-width: 0 !important; /* 允许弹性收缩，不撑裂 */
+  }
+  
+  .live-scoreboard-panel.has-live .live-team-name {
+    font-size: 14px !important;
+    margin-bottom: 2px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important; /* 名字过长时显示省略号 */
+  }
+  
+  .live-scoreboard-panel.has-live .live-score-value {
+    font-size: 28px !important;
+    margin-bottom: 0 !important;
+    line-height: 1.1 !important;
+  }
+  
+  /* 极度压缩中间时钟区域 */
+  .live-scoreboard-panel.has-live .live-center-col {
+    padding: 0 2px !important;
+    min-width: 80px !important; /* 保证时间不换行 */
+  }
+  
+  .live-scoreboard-panel.has-live .live-period {
+    font-size: 10px !important;
+    padding: 2px 5px !important;
+    margin-bottom: 2px !important;
+  }
+  
+  .live-scoreboard-panel.has-live .live-timer-clock {
+    font-size: 20px !important;
+    margin-bottom: 2px !important;
+    line-height: 1.1 !important;
+  }
+  
+  .live-scoreboard-panel.has-live .live-timer-state {
+    font-size: 10px !important;
+    padding: 2px 4px !important;
+  }
+}
+
+
+/* Danmaku System & Voice select triggers */
+/* ========================================== */
+/* 💬 实时观赛全屏弹幕系统样式                 */
+/* ========================================== */
+
+/* 默认状态下隐藏控制栏 */
+.live-danmaku-control-bar {
+  display: none !important;
+}
+
+/* 全屏状态下渲染器容器与弹幕元素 */
+.danmaku-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* 穿透鼠标点击，防止阻挡视频操作 */
+  overflow: hidden;
+  z-index: 15; /* 提升层级，使其高于比分栏(z-index: 10) */
+  display: none; /* 默认随全屏激活而显现 */
+}
+
+/* 仅在全屏模式下才显示弹幕容器 */
+.live-scoreboard-panel.live-fullscreen-mode .danmaku-container,
+.live-scoreboard-panel:fullscreen .danmaku-container {
+  display: block;
+}
+
+/* 飘过的弹幕子节点 */
+.danmaku-item {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ffffff;
+  /* 黑色高强度描边，保证弹幕在各种明暗背景的视频中都能极清晰辨认 */
+  text-shadow: 
+    1.5px 1.5px 0 #000000,
+    -1.5px -1.5px 0 #000000,
+    1.5px -1.5px 0 #000000,
+    -1.5px 1.5px 0 #000000,
+    0px 2px 4px rgba(0, 0, 0, 0.7);
+  animation: danmaku-slide 8.5s linear forwards;
+  will-change: transform;
+}
+
+@keyframes danmaku-slide {
+  from {
+    transform: translate3d(var(--danmaku-start, 100vw), 0, 0);
+  }
+  to {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+/* 全屏状态下的弹幕控制与发送栏（磨砂毛玻璃） */
+.live-scoreboard-panel.live-fullscreen-mode .live-danmaku-control-bar,
+.live-scoreboard-panel:fullscreen .live-danmaku-control-bar {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: auto;
+  min-width: 580px;
+  max-width: 90%;
+  z-index: 20; /* 盖在视频和弹幕上方 */
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: auto; /* 必须恢复鼠标事件 */
+}
+
+/* 闲置 3 秒后淡出控制栏 (保持 translate 的 X 轴居中) */
+.live-danmaku-control-bar.idle-hidden {
+  opacity: 0 !important;
+  transform: translate(-50%, 15px) !important;
+  pointer-events: none !important;
+}
+
+/* 弹幕输入行 */
+.danmaku-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  padding: 0.45rem 0.6rem 0.45rem 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* 弹幕昵称输入框 */
+.danmaku-nickname-input {
+  width: 85px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0.2rem 0.5rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  outline: none;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.danmaku-nickname-input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.danmaku-nickname-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 弹幕正文输入框 */
+.danmaku-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.danmaku-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 开关弹幕及语音按钮 */
+.danmaku-toggle-btn,
+.danmaku-voice-toggle-btn,
+.danmaku-history-toggle-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.35rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.danmaku-toggle-btn.active,
+.danmaku-voice-toggle-btn.active,
+.danmaku-history-toggle-btn.active {
+  color: #ff9800; /* 激活色使用亮橙色 */
+}
+
+.danmaku-toggle-btn:hover,
+.danmaku-voice-toggle-btn:hover,
+.danmaku-history-toggle-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 历史记录按钮始终保持与左侧激活按钮相同的黄色，以达到视觉统一 */
+.danmaku-history-toggle-btn {
+  color: #ff9800;
+}
+
+/* 弹幕颜色选择器 */
+.danmaku-color-selector {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.danmaku-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1.5px solid rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.danmaku-color-dot:hover {
+  transform: scale(1.15);
+}
+
+.danmaku-color-dot.active {
+  transform: scale(1.25);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* 发送按钮 */
+.danmaku-send-btn {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: #ffffff;
+  border: none;
+  outline: none;
+  border-radius: 20px;
+  padding: 0.45rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.danmaku-send-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.danmaku-send-btn:active {
+  transform: translateY(0);
+}
+
+/* 快捷胶囊推荐词 */
+.danmaku-shortcuts {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+}
+
+.danmaku-shortcut-item {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.2rem 0.65rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danmaku-shortcut-item:hover {
+  background: #ff9800;
+  color: #ffffff;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+.danmaku-shortcut-item:active {
+  transform: translateY(0);
+}
+/* ========================================== */
+/* 弹幕历史记录面板 (Danmaku History Panel)   */
+/* ========================================== */
+.danmaku-history-panel {
+  position: absolute;
+  top: 0;
+  right: -320px;
+  width: 320px;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+}
+
+.live-scoreboard-panel.has-history-open .danmaku-history-panel {
+  right: 0;
+}
+
+/* PC 端挤压内容区域 */
+.live-scoreboard-panel {
+  transition: width 0.3s ease;
+}
+.live-scoreboard-panel .live-scoreboard-content {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.live-scoreboard-panel.has-history-open .live-scoreboard-content {
+  width: calc(100% - 320px);
+}
+
+/* 移动端横屏适配 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-history-panel {
+  width: 40%;
+  right: -40%;
+}
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.has-history-open .danmaku-history-panel {
+  right: 0;
+}
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.has-history-open .live-scoreboard-content {
+  width: 60%;
+}
+
+/* 历史面板内部样式 */
+.history-panel-header {
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-panel-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.history-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.history-close-btn:hover {
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.history-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+  scroll-behavior: smooth;
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+.history-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+.history-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.history-panel-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.history-list li {
+  font-size: 0.95rem;
+  word-break: break-all;
+  line-height: 1.4;
+  animation: fadeIn 0.3s ease;
+}
+
+.history-list li .history-time {
+  color: rgba(255,255,255,0.3);
+  font-size: 0.8rem;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.history-list li .history-nickname {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.history-list li .history-text {
+  font-weight: 400;
+}
+
+/* ==========================================================================
+   Custom Dropdown Component Styles (自定义弹幕播报音色下拉组件)
+   ========================================================================== */
+.danmaku-voice-select-container {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.danmaku-voice-select-trigger {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0.2rem 0.5rem;
+  color: #ffffff;
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+
+.danmaku-voice-select-trigger .selected-voice-text {
+  max-width: 90px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.danmaku-voice-select-trigger .dropdown-arrow {
+  font-size: 0.95rem;
+  transition: transform 0.3s ease;
+  opacity: 0.7;
+}
+
+.danmaku-voice-select-container:not(.disabled) .danmaku-voice-select-trigger:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.danmaku-voice-select-container.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.danmaku-voice-select-container.disabled .danmaku-voice-select-trigger {
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.danmaku-voice-dropdown-list {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 6px 0;
+  margin: 0;
+  list-style: none;
+  min-width: 140px;
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: none;
+  flex-direction: column;
+}
+
+.danmaku-voice-dropdown-list.show {
+  display: flex;
+}
+
+.danmaku-voice-dropdown-list li {
+  padding: 8px 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.danmaku-voice-dropdown-list li:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.danmaku-voice-dropdown-list li.active {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Mobile Landscape Fullscreen Fine-tuning (移动端伪全屏下的排版和组件精细优化)
+   ========================================================================== */
+
+/* 1. 比分面板特异性增强与强力贴右边缘定位 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen.live-fullscreen-mode .live-scoreboard-body,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen:fullscreen .live-scoreboard-body,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .live-scoreboard-body {
+  top: 0.5rem !important;
+  right: 0.5rem !important; /* 强力贴靠右边缘 */
+  width: 230px !important;
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* 2. 弹幕控制条在极窄宽度下的适配逻辑 */
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-input-row {
+  padding: 0.35rem 0.5rem !important;
+  gap: 0.35rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-nickname-input {
+  width: 60px !important;
+  padding: 0.2rem 0.35rem !important;
+  font-size: 0.8rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-select-trigger {
+  padding: 0.2rem 0.35rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-select-trigger .selected-voice-text {
+  max-width: 60px !important; /* 强制裁剪名称以节省空间 */
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-input {
+  min-width: 0 !important;
+  flex: 1 !important;
+  flex-shrink: 1 !important;
+  font-size: 0.85rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-color-selector {
+  gap: 0.25rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-color-dot {
+  width: 11px !important;
+  height: 11px !important;
+  border-width: 1px !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-toggle-btn,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-voice-toggle-btn,
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-history-toggle-btn {
+  font-size: 1.15rem !important;
+}
+
+.live-scoreboard-panel.live-mobile-landscape-fullscreen .danmaku-send-btn {
+  padding: 0.35rem 0.85rem !important;
+  font-size: 0.8rem !important;
+  flex-shrink: 0 !important;
+}
