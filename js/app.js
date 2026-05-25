@@ -337,6 +337,12 @@ class App {
 
       this.ws.onopen = () => {
         console.log('📡 实时比分同步连接已建立');
+        
+        // 🚨 核心握手：建立长连接后，如果已登录，则立即发送 AUTH 进行身份绑定
+        if (this.token) {
+          this.sendWsMessage('AUTH', { token: this.token });
+        }
+
         // 将连接断开期间排队的请求重发
         if (this.wsQueue && this.wsQueue.length > 0) {
           this.wsQueue.forEach(msg => this.sendWsMessage(msg.type, msg.payload));
