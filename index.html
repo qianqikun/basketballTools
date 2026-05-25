@@ -35,11 +35,26 @@
         <button class="nav-item" data-target="live">
           <i class='bx bx-broadcast'></i> 实时观战
         </button>
+        <button class="nav-item" data-target="profile" id="nav-profile-btn">
+          <i class='bx bx-user-pin'></i> 个人设置
+        </button>
+        <button class="nav-item" data-target="users" id="nav-users-btn" style="display: none;">
+          <i class='bx bx-group'></i> 用户管理
+        </button>
       </nav>
       <div class="sidebar-footer">
+        <div class="current-user-info" id="current-user-info" style="display: none;">
+          <i class='bx bx-user-circle'></i>
+          <div class="user-meta">
+            <span class="user-nickname" id="user-nickname-display">-</span>
+            <span class="user-role" id="user-role-display">-</span>
+          </div>
+        </div>
+        <button id="logout-btn" class="danger-btn" style="margin-top: 0.5rem;"><i class='bx bx-log-out'></i> 退出登录</button>
         <button id="reset-all-btn" class="danger-btn"><i class='bx bx-reset'></i> 重置所有数据</button>
       </div>
     </aside>
+
 
     <main class="main-content">
       <!-- 报名管理模块 -->
@@ -260,8 +275,204 @@
         <div id="live-active-matches" class="live-matches-container"></div>
       </section>
 
+      <!-- 用户管理模块 -->
+      <section id="users" class="view-section">
+        <header class="section-header">
+          <h1>用户管理</h1>
+          <p>管理系统内的裁判和管理员账户，支持修改密码、删除用户等操作。</p>
+        </header>
+        <div class="users-container">
+          <div class="user-list-card">
+            <div class="list-header" style="margin-bottom: 1.5rem;">
+              <h3>系统账号列表</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="user-table" id="user-table">
+                <thead>
+                  <tr>
+                    <th>用户名</th>
+                    <th>昵称</th>
+                    <th>角色</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="user-list-tbody">
+                  <!-- 动态渲染 -->
+                </tbody>
+              </table>
+            </div>
+            <!-- 移动端自适应卡片列表 -->
+            <div class="user-cards-grid" id="user-cards-mobile">
+              <!-- 动态渲染 -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 个人设置模块 -->
+      <section id="profile" class="view-section">
+        <header class="section-header">
+          <h1>个人设置</h1>
+          <p>修改您的系统昵称，或更改您的登录密码。</p>
+        </header>
+        <div class="profile-container">
+          <div class="profile-card">
+            <form id="profile-settings-form" novalidate>
+              <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="profile-username" readonly style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--panel-border);">
+              </div>
+              <div class="form-group">
+                <label for="profile-nickname">昵称</label>
+                <input type="text" id="profile-nickname" required placeholder="请输入新昵称 (2-10位)">
+                <span class="error-msg" id="profile-nickname-error"></span>
+              </div>
+              <div class="form-group-divider">
+                <span>修改密码 (留空则不修改)</span>
+              </div>
+              <div class="form-group">
+                <label for="profile-old-password">当前密码</label>
+                <input type="password" id="profile-old-password" placeholder="若要修改密码，请输入当前密码" autocomplete="current-password">
+                <span class="error-msg" id="profile-old-password-error"></span>
+              </div>
+              <div class="form-group">
+                <label for="profile-new-password">新密码</label>
+                <input type="password" id="profile-new-password" placeholder="6-20位新密码" autocomplete="new-password">
+                <span class="error-msg" id="profile-new-password-error"></span>
+              </div>
+              <div class="form-group">
+                <label for="profile-confirm-password">确认新密码</label>
+                <input type="password" id="profile-confirm-password" placeholder="请再次输入新密码" autocomplete="new-password">
+                <span class="error-msg" id="profile-confirm-password-error"></span>
+              </div>
+              <button type="submit" class="primary-btn profile-submit-btn"><i class='bx bx-check-circle'></i> 保存更改</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
+
+  <!-- 登录注册模块 -->
+  <div id="auth-container" class="auth-container" style="display: none;">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <i class='bx bxs-basketball'></i>
+        <h2>HoopsManager</h2>
+        <p>篮球比赛管理与实时同步工具</p>
+      </div>
+      
+      <!-- 登录表单 -->
+      <div id="login-form-wrapper" class="auth-form-wrapper">
+        <h3>登录账户</h3>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="login-username">用户名</label>
+            <input type="text" id="login-username" required placeholder="请输入用户名" autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="login-password">密码</label>
+            <input type="password" id="login-password" required placeholder="请输入密码" autocomplete="current-password">
+          </div>
+          <button type="submit" class="primary-btn auth-btn">立即登录</button>
+        </form>
+        <div class="auth-switch">
+          没有账号？ <a href="#" id="go-to-register">去注册</a>
+        </div>
+      </div>
+      
+      <!-- 注册表单 -->
+      <div id="register-form-wrapper" class="auth-form-wrapper" style="display: none;">
+        <h3>注册裁判账号</h3>
+        <div class="auth-notice-mini">
+          <i class='bx bx-info-circle'></i> 规则: 用户名3-20位(英/数/_), 昵称2-10位, 密码6-20位
+        </div>
+        <form id="register-form" novalidate>
+          <div class="form-group">
+            <label for="register-username">用户名</label>
+            <input type="text" id="register-username" required placeholder="3-20位英文、数字或下划线" autocomplete="username">
+            <span class="error-msg" id="register-username-error"></span>
+          </div>
+          <div class="form-group">
+            <label for="register-nickname">昵称</label>
+            <input type="text" id="register-nickname" required placeholder="2-10位字符，用于弹幕及执裁" autocomplete="nickname">
+            <span class="error-msg" id="register-nickname-error"></span>
+          </div>
+          <div class="form-group">
+            <label for="register-password">密码</label>
+            <input type="password" id="register-password" required placeholder="6-20位密码" autocomplete="new-password">
+            <span class="error-msg" id="register-password-error"></span>
+          </div>
+          <div class="form-group">
+            <label for="register-confirm-password">确认密码</label>
+            <input type="password" id="register-confirm-password" required placeholder="请再次输入密码以确认" autocomplete="new-password">
+            <span class="error-msg" id="register-confirm-password-error"></span>
+          </div>
+          <button type="submit" class="primary-btn auth-btn">注册并登录</button>
+        </form>
+        <div class="auth-switch">
+          已有账号？ <a href="#" id="go-to-login">立即登录</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码模态弹窗 -->
+  <div id="password-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>修改用户密码</h3>
+        <button class="modal-close-btn" id="close-password-modal"><i class='bx bx-x'></i></button>
+      </div>
+      <form id="update-password-form">
+        <input type="hidden" id="update-password-userid">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="update-password-username" readonly style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--panel-border);">
+        </div>
+        <div class="form-group">
+          <label for="new-password">新密码 <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">(6-20位)</span></label>
+          <input type="password" id="new-password" required placeholder="请输入新密码" autocomplete="new-password" minlength="6" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label for="confirm-new-password">确认新密码</label>
+          <input type="password" id="confirm-new-password" required placeholder="请再次输入新密码" autocomplete="new-password" minlength="6" maxlength="20">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="secondary-btn" id="cancel-password-modal">取消</button>
+          <button type="submit" class="primary-btn">确认修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 修改昵称模态弹窗 -->
+  <div id="nickname-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>修改用户昵称</h3>
+        <button class="modal-close-btn" id="close-nickname-modal"><i class='bx bx-x'></i></button>
+      </div>
+      <form id="update-nickname-form">
+        <input type="hidden" id="update-nickname-userid">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="update-nickname-username" readonly style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--panel-border);">
+        </div>
+        <div class="form-group">
+          <label for="new-nickname">新昵称 <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">(2-10位)</span></label>
+          <input type="text" id="new-nickname" required placeholder="请输入新昵称" autocomplete="nickname" minlength="2" maxlength="10">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="secondary-btn" id="cancel-nickname-modal">取消</button>
+          <button type="submit" class="primary-btn">确认修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 
   <!-- 视频直播 WebRTC 与二维码 SDK 引入 -->
   <script src="js/lib/srs.sdk.js"></script>

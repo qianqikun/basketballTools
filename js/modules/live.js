@@ -77,6 +77,7 @@ export class LiveModule {
       
       <div class="live-scoreboard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; width: 100%;">
         <span class="live-round-tag" style="display: none;"></span>
+        <span class="live-referee-info" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;"></span>
         <span class="live-status-badge"><span class="pulse-dot"></span> 直播中</span>
       </div>
 
@@ -211,6 +212,7 @@ export class LiveModule {
       tickerWrap: cardEl.querySelector('.live-ticker-wrap'),
       tickerMsg: cardEl.querySelector('.live-ticker-message'),
       roundName: cardEl.querySelector('.live-round-tag'),
+      refereeInfo: cardEl.querySelector('.live-referee-info'),
       
       videoWrapper: cardEl.querySelector('.live-video-wrapper'),
       videoOverlay: cardEl.querySelector('.video-overlay'),
@@ -255,12 +257,17 @@ export class LiveModule {
     };
 
     // 初始化弹幕昵称
-    const savedNickname = localStorage.getItem('live_danmaku_nickname') || '';
     if (elements.danmakuNicknameInput) {
-      elements.danmakuNicknameInput.value = savedNickname;
-      elements.danmakuNicknameInput.addEventListener('input', (e) => {
-        localStorage.setItem('live_danmaku_nickname', e.target.value.trim());
-      });
+      if (this.app.currentUser) {
+        elements.danmakuNicknameInput.value = this.app.currentUser.nickname;
+        elements.danmakuNicknameInput.style.display = 'none'; // 登录后直接隐藏昵称输入框
+      } else {
+        const savedNickname = localStorage.getItem('live_danmaku_nickname') || '';
+        elements.danmakuNicknameInput.value = savedNickname;
+        elements.danmakuNicknameInput.addEventListener('input', (e) => {
+          localStorage.setItem('live_danmaku_nickname', e.target.value.trim());
+        });
+      }
     }
 
     // 注册到本地管理字典中
@@ -626,6 +633,14 @@ export class LiveModule {
       card.elements.roundName.style.display = 'inline-block';
     } else {
       card.elements.roundName.style.display = 'none';
+    }
+
+    // 渲染裁判信息
+    if (data.referee && data.referee.nickname) {
+      card.elements.refereeInfo.textContent = `裁判: ${data.referee.nickname}`;
+      card.elements.refereeInfo.style.display = 'inline-block';
+    } else {
+      card.elements.refereeInfo.style.display = 'none';
     }
 
     // 3. 高光跑马灯提示（事件对比判定）

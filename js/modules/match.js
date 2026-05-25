@@ -205,6 +205,11 @@ export class MatchModule {
       videoStreamUrl = `webrtc://${window.location.hostname}/live/show_${this.currentMatch.id}`;
     }
 
+    const referee = this.app.currentUser ? {
+      username: this.app.currentUser.username,
+      nickname: this.app.currentUser.nickname
+    } : null;
+
     this.app.sendWsMessage('MATCH_START', {
       matchId: this.currentMatch.id,
       roundName: this.currentMatch.roundName || '',
@@ -213,7 +218,8 @@ export class MatchModule {
       timeRemaining: this.timeRemaining,
       currentPeriod: period,
       hasVideo,
-      videoStreamUrl
+      videoStreamUrl,
+      referee
     });
   }
 
@@ -229,6 +235,11 @@ export class MatchModule {
       videoStreamUrl = `webrtc://${window.location.hostname}/live/show_${this.currentMatch.id}`;
     }
 
+    const referee = this.app.currentUser ? {
+      username: this.app.currentUser.username,
+      nickname: this.app.currentUser.nickname
+    } : null;
+
     this.app.sendWsMessage('MATCH_UPDATE', {
       matchId: this.currentMatch.id,
       home: { name: this.teams.home.el.name.textContent, score: this.teams.home.score, fouls: this.teams.home.fouls, timeouts: this.teams.home.timeouts },
@@ -237,7 +248,8 @@ export class MatchModule {
       currentPeriod: period,
       isRunning: this.isRunning,
       hasVideo,
-      videoStreamUrl
+      videoStreamUrl,
+      referee
     });
   }
 
@@ -245,7 +257,8 @@ export class MatchModule {
     this.currentMatch = match;
     this.showOverlay('loading', '正在获取控制权...', '请稍候，系统正在向服务器申请比赛控制锁。');
     
-    this.roundName.textContent = `当前对阵`;
+    const refereeText = this.app.currentUser ? ` (执裁裁判: ${this.app.currentUser.nickname})` : '';
+    this.roundName.textContent = `当前对阵${refereeText}`;
     
     // 初始化队伍信息
     this.teams.home.id = match.team1.id;
