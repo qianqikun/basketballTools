@@ -295,3 +295,4 @@ export class UsersModule {
       `;
     }).join('');
   }
+}
