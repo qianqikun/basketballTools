@@ -32,8 +32,9 @@ RUN npm config set registry https://registry.npmmirror.com && \
     npm install --production --no-audit --no-fund && \
     npm rebuild sqlite3 --build-from-source --no-audit --no-fund
 
-# 复制后端源码
+# 复制后端与世界杯工具源码
 COPY server/ ./server/
+COPY worldCupTool/ ./worldCupTool/
 
 # 从阶段1 (frontend-builder) 拷贝前端编译好的静态 dist 目录
 COPY --from=frontend-builder /build/dist ./frontend/dist
