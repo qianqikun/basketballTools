@@ -1,7 +1,7 @@
 # ==========================================
 # 阶段1：构建前端 React 打包产物 (frontend-builder)
 # ==========================================
-FROM hub.rat.dev/library/node:20-slim AS frontend-builder
+FROM node:20-slim AS frontend-builder
 WORKDIR /build
 COPY frontend/package.json ./
 RUN npm config set registry https://registry.npmmirror.com && \
@@ -12,7 +12,7 @@ RUN npm run build
 # ==========================================
 # 阶段2：构建 Node 后端生产运行环境
 # ==========================================
-FROM hub.rat.dev/library/node:20-slim    
+FROM node:20-slim    
 
 # 安装 SQLite3 构建所需的底层依赖工具（作为编译回退保障，同时清理缓存）
 RUN apt-get update && apt-get install -y \

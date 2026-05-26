@@ -222,9 +222,24 @@
 }
 
 
+.history-multi-groups {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 769px) {
+  .history-multi-groups.four-groups {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* Mobile Overrides */
 @media (max-width: 768px) {
   /* 赛程记录移动端极简化适配 (Compact margins for history page) */
+  .history-container {
+    padding: 1rem !important;
+  }
   .history-section-title {
     margin: 1.5rem 0 1rem 0;
     font-size: 1.25rem;
@@ -281,6 +296,7 @@
   .history-list {
     grid-template-columns: 1fr !important;
     gap: 0.5rem !important;
+  }
   .history-team {
     font-size: 0.85rem !important;
   }
@@ -292,4 +308,28 @@
   }
 }
 
+/* 移动端小组积分榜防溢出水平滚动适配 */
+.history-round.group-history-round {
+  min-width: 0;
+  width: 100%;
+}
+.history-group-standings {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.history-single-group,
+.history-multi-groups {
+  width: 100%;
+  min-width: 0;
+}
+.history-group-card {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.history-standings-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

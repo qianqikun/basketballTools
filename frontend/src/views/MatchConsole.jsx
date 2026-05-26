@@ -265,6 +265,10 @@ export default function MatchConsole({ match, onBack }) {
   const syncCounterRef = useRef(0);
   useEffect(() => {
     if (!match) return;
+    
+    // 如果仍在获取控制权过程中，严禁自动同步，防止默认初始状态（如 liveVideoEnable=false）覆盖真实赛况
+    if (controlPendingRef.current) return;
+
     if (!isRunning) {
       // 暂停时立刻同步
       saveAndSync({ isRunning: false });
@@ -389,26 +393,34 @@ export default function MatchConsole({ match, onBack }) {
         currentM.score2 = awayScore;
         currentM.completed = true;
         
-        // 判定胜负，踢出失败者
+        // 判定胜负并记录赢家
         if (currentM.score1 > currentM.score2) {
           currentM.winner = currentM.team1;
-          tState.activeTeams = tState.activeTeams.filter(team => team.id !== currentM.team2.id);
         } else {
           currentM.winner = currentM.team2;
-          tState.activeTeams = tState.activeTeams.filter(team => team.id !== currentM.team1.id);
+        }
+
+        // 仅在淘汰赛阶段剔除输球的球队（循环赛阶段所有球队仍需参与后续积分计算和比赛）
+        if (tState.stage !== 'group') {
+          const loserId = currentM.score1 > currentM.score2 ? currentM.team2.id : currentM.team1.id;
+          tState.activeTeams = tState.activeTeams.filter(team => team.id !== loserId);
         }
 
         tState.currentMatches[matchIndex] = currentM;
 
-        // 判定本轮是否全部打完
+        // 判定本阶段或轮次是否全部打完
         const allCompleted = tState.currentMatches.every(m => m.completed);
         if (allCompleted) {
-          tState.history.push({
-            round: tState.round,
-            matches: JSON.parse(JSON.stringify(tState.currentMatches))
-          });
-          tState.round += 1;
-          tState.currentMatches = [];
+          // 仅在淘汰赛阶段才在全部完赛后归档轮次、推进轮次并置空当前对阵
+          // 循环赛阶段必须保留 currentMatches 用以计算积分榜，并由管理员手动点击“晋级”生成下一阶段对阵
+          if (tState.stage !== 'group') {
+            tState.history.push({
+              round: tState.round,
+              matches: JSON.parse(JSON.stringify(tState.currentMatches))
+            });
+            tState.round += 1;
+            tState.currentMatches = [];
+          }
         }
 
         // 清理本地比赛缓存
