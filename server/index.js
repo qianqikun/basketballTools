@@ -489,10 +489,53 @@ const broadcast = (data) => {
   });
 };
 
+// 释放除 currentMatchId 以外的、由当前连接或账户控制的其他比赛的控制权
+const releaseOtherMatchesControl = (ws, currentMatchId) => {
+  const username = ws.username;
+  const clientId = ws.id;
+
+  let changed = false;
+  Object.keys(globalLiveMatches).forEach((mid) => {
+    if (mid === currentMatchId) return;
+
+    const match = globalLiveMatches[mid];
+    const isControlledByUser = username && match.controllerUsername === username;
+    const isControlledByClient = !username && match.controllerClientId === clientId;
+
+    if (isControlledByUser || isControlledByClient) {
+      console.log(`🔌 用户 ${username || 'guest'} 因控制新比赛 [${currentMatchId}]，自动释放旧比赛 [${mid}] 的控制权`);
+      
+      match.controllerUsername = null;
+      match.controllerClientId = null;
+      match.isRunning = false; // 默认挂起时钟以策安全
+      match.lastUpdated = Date.now();
+      changed = true;
+
+      // 通知原本拥有该旧比赛控制权的所有客户端连接
+      wss.clients.forEach((client) => {
+        const isOldControllerClient = client.id === clientId || (username && client.username === username);
+        if (isOldControllerClient && client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ 
+            type: 'CONTROL_LOST', 
+            payload: { 
+              matchId: mid, 
+              reason: 'another_control_started' 
+            } 
+          }));
+        }
+      });
+    }
+  });
+
+  if (changed) {
+    broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+  }
+};
+
 wss.on('connection', (ws) => {
   // 分配唯一的 clientId
   ws.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
-  console.log(`📡 新客户端已连接 WebSocket (ID: ${ws.id})`);
+  console.log(`[DEBUG] [CONNECT] 📡 新客户端已连接 WebSocket (ID: ${ws.id})`);
 
   // 当新客户端连接时，立刻同步当前的进行中比赛列表给它
   ws.send(JSON.stringify({
@@ -507,16 +550,33 @@ wss.on('connection', (ws) => {
         case 'AUTH':
           if (data.payload && data.payload.token) {
             const session = activeSessions[data.payload.token];
-            if (session) {
+            if (session && session.expiresAt > Date.now()) {
               ws.username = session.username;
               ws.nickname = session.nickname;
-              console.log(`🔑 WebSocket 连接 [${ws.id}] 已绑定登录账户: ${ws.username} (${ws.nickname})`);
+              console.log(`[DEBUG] [AUTH_SUCCESS] 🔑 WebSocket 连接 [${ws.id}] 已绑定登录账户: ${ws.username} (${ws.nickname})`);
+            } else {
+              console.warn(`[DEBUG] [AUTH_FAIL] 🔒 WebSocket 连接 [${ws.id}] 提供的 token 在服务器中未找到或已过期`);
+              ws.send(JSON.stringify({ 
+                type: 'AUTH_FAILED', 
+                payload: { error: '登录已失效，请重新登录' } 
+              }));
             }
           }
           break;
 
         case 'MATCH_START':
           if (data.payload && data.payload.matchId) {
+            // 校验是否为登录用户
+            if (!ws.username) {
+              ws.send(JSON.stringify({ 
+                type: 'CONTROL_REJECTED', 
+                payload: { 
+                  matchId: data.payload.matchId, 
+                  error: '未登录，游客无法控制比赛。请先登录！' 
+                } 
+              }));
+              return;
+            }
             // 记分员启动比赛，初始化该场实时比赛状态
             globalLiveMatches[data.payload.matchId] = {
               matchId: data.payload.matchId,
@@ -530,25 +590,51 @@ wss.on('connection', (ws) => {
               videoStreamUrl: data.payload.videoStreamUrl || '',
               danmakuHistory: [], // 初始化弹幕历史记录队列
               controllerUsername: ws.username || null, // 绑定当前控制的账户用户名
+              controllerClientId: ws.id, // 绑定当前控制的 WebSocket 连接 ID
               lastUpdated: Date.now()
             };
             broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
-            console.log(`🏀 比赛实时同步已开启：[${data.payload.matchId}] ${data.payload.home.name} vs ${data.payload.away.name} (Controller: ${ws.username || 'guest'})`);
+            console.log(`🏀 比赛实时同步已开启：[${data.payload.matchId}] ${data.payload.home.name} vs ${data.payload.away.name} (Controller: ${ws.username || 'guest'}, ClientId: ${ws.id})`);
+            
+            // 释放该用户控制的其他比赛
+            releaseOtherMatchesControl(ws, data.payload.matchId);
           }
           break;
 
         case 'REQUEST_CONTROL':
           if (data.payload && data.payload.matchId) {
             const mid = data.payload.matchId;
+            console.log(`[DEBUG] [REQUEST_CONTROL] 收密控制请求: ws.id=${ws.id}, ws.username=${ws.username || 'null'}, matchId=${mid}`);
+            // 校验是否为登录用户
+            if (!ws.username) {
+              ws.send(JSON.stringify({ 
+                type: 'CONTROL_RESPONSE', 
+                payload: { 
+                  matchId: mid, 
+                  success: false, 
+                  error: '未登录，游客无法控制比赛。请先登录！' 
+                } 
+              }));
+              return;
+            }
             const match = globalLiveMatches[mid];
             if (match) {
-              // 比赛存在，检查是否被其他用户账号占用 (支持同一账号的多连接共同操作)
-              if (!match.controllerUsername || match.controllerUsername === ws.username) {
+              // 检查控制权归属：
+              // 1. 如果没有旧的控制端，或者控制端 ClientId 与当前连接一致
+              // 2. 如果控制端绑定了账号，且当前连接绑定了相同账号
+              const isSameClient = match.controllerClientId === ws.id;
+              const isSameUser = match.controllerUsername && match.controllerUsername === ws.username;
+
+              if (!match.controllerClientId || isSameClient || isSameUser) {
                 match.controllerUsername = ws.username || null; // 授予/刷新控制权
+                match.controllerClientId = ws.id;
                 ws.send(JSON.stringify({ type: 'CONTROL_RESPONSE', payload: { matchId: mid, success: true } }));
+                
+                // 成功授权后，释放该用户控制的其他比赛
+                releaseOtherMatchesControl(ws, mid);
               } else {
-                // 已被其他账号占用，拒绝并通知客户端
-                ws.send(JSON.stringify({ type: 'CONTROL_RESPONSE', payload: { matchId: mid, success: false, occupiedBy: match.controllerUsername } }));
+                // 已被其他账号/设备占用，拒绝并通知客户端
+                ws.send(JSON.stringify({ type: 'CONTROL_RESPONSE', payload: { matchId: mid, success: false, occupiedBy: match.controllerUsername || 'guest' } }));
               }
             } else {
               // 比赛尚未开始广播，允许获取控制权，后续会由 MATCH_START 补全
@@ -560,22 +646,40 @@ wss.on('connection', (ws) => {
         case 'FORCE_TAKE_CONTROL':
           if (data.payload && data.payload.matchId) {
             const mid = data.payload.matchId;
+            // 校验是否为登录用户
+            if (!ws.username) {
+              ws.send(JSON.stringify({ 
+                type: 'CONTROL_RESPONSE', 
+                payload: { 
+                  matchId: mid, 
+                  success: false, 
+                  error: '未登录，游客无法控制比赛。请先登录！' 
+                } 
+              }));
+              return;
+            }
             const match = globalLiveMatches[mid];
             if (match) {
               const oldControllerUsername = match.controllerUsername;
+              const oldControllerClientId = match.controllerClientId;
+
               match.controllerUsername = ws.username || null;
-              console.log(`⚠️ 比赛 [${mid}] 控制权被强制接管：${oldControllerUsername} -> ${ws.username}`);
+              match.controllerClientId = ws.id;
+              console.log(`⚠️ 比赛 [${mid}] 控制权被强制接管：${oldControllerUsername || 'guest'}(${oldControllerClientId}) -> ${ws.username || 'guest'}(${ws.id})`);
               
-              // 通知被抢走控制权的账号的所有连接控制权已丢失
-              if (oldControllerUsername) {
-                wss.clients.forEach(client => {
-                  if (client.username === oldControllerUsername && client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'CONTROL_LOST', payload: { matchId: mid } }));
-                  }
-                });
-              }
+              // 通知被抢走控制权的所有旧连接控制权已丢失（无论旧控制者是登录账号还是普通游客）
+              wss.clients.forEach(client => {
+                const matchUser = oldControllerUsername && client.username === oldControllerUsername;
+                const matchClient = !oldControllerUsername && client.id === oldControllerClientId;
+                if ((matchUser || matchClient) && client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({ type: 'CONTROL_LOST', payload: { matchId: mid } }));
+                }
+              });
               
               ws.send(JSON.stringify({ type: 'CONTROL_RESPONSE', payload: { matchId: mid, success: true } }));
+
+              // 成功强行接管后，释放该用户控制的其他比赛
+              releaseOtherMatchesControl(ws, mid);
             } else {
               // 如果比赛本身还没在服务器中建立
               ws.send(JSON.stringify({ type: 'CONTROL_RESPONSE', payload: { matchId: mid, success: true } }));
@@ -586,10 +690,18 @@ wss.on('connection', (ws) => {
         case 'MATCH_UPDATE':
           if (data.payload && data.payload.matchId) {
             const mid = data.payload.matchId;
+            // 校验是否为登录用户
+            if (!ws.username) {
+              ws.send(JSON.stringify({ type: 'CONTROL_REJECTED', payload: { matchId: mid, error: '游客无法控制比赛' } }));
+              return;
+            }
             if (globalLiveMatches[mid]) {
-              // 防并发校验：只有拥有控制权的账号才允许更新比赛状态
-              if (globalLiveMatches[mid].controllerUsername && globalLiveMatches[mid].controllerUsername !== ws.username) {
-                console.log(`⚠️ 拒绝非法控制更新: matchId=${mid}, 发送方=${ws.username || 'guest'}, 当前控制者=${globalLiveMatches[mid].controllerUsername}`);
+              // 防并发校验：只有拥有控制权的账号或同一连接才允许更新比赛状态
+              const isSameClient = globalLiveMatches[mid].controllerClientId === ws.id;
+              const isSameUser = globalLiveMatches[mid].controllerUsername && globalLiveMatches[mid].controllerUsername === ws.username;
+
+              if (!isSameClient && !isSameUser) {
+                console.log(`⚠️ 拒绝非法控制更新: matchId=${mid}, 发送方=${ws.username || 'guest'}(${ws.id}), 当前控制者=${globalLiveMatches[mid].controllerUsername || 'guest'}(${globalLiveMatches[mid].controllerClientId})`);
                 ws.send(JSON.stringify({ type: 'CONTROL_REJECTED', payload: { matchId: mid } }));
                 return;
               }
@@ -598,6 +710,7 @@ wss.on('connection', (ws) => {
                 ...globalLiveMatches[mid],
                 ...data.payload,
                 controllerUsername: ws.username || null, // 确保控制权不被 payload 覆盖
+                controllerClientId: globalLiveMatches[mid].controllerClientId, // 确保控制连接 ID 不被覆盖
                 lastUpdated: Date.now()
               };
               broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
@@ -608,14 +721,24 @@ wss.on('connection', (ws) => {
         case 'MATCH_END':
           if (data.payload && data.payload.matchId) {
             const mid = data.payload.matchId;
-            if (globalLiveMatches[mid] && globalLiveMatches[mid].controllerUsername && globalLiveMatches[mid].controllerUsername !== ws.username) {
-              console.log(`⚠️ 拒绝非法结束比赛: matchId=${mid}, 发送方=${ws.username || 'guest'}`);
-              ws.send(JSON.stringify({ type: 'CONTROL_REJECTED', payload: { matchId: mid } }));
+            // 校验是否为登录用户
+            if (!ws.username) {
+              ws.send(JSON.stringify({ type: 'CONTROL_REJECTED', payload: { matchId: mid, error: '游客无法控制比赛' } }));
               return;
             }
-            console.log(`🏆 比赛 [${mid}] 已结束并提交，清除其实时广播状态及弹幕记录`);
-            delete globalLiveMatches[mid];
-            broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+            if (globalLiveMatches[mid]) {
+              const isSameClient = globalLiveMatches[mid].controllerClientId === ws.id;
+              const isSameUser = globalLiveMatches[mid].controllerUsername && globalLiveMatches[mid].controllerUsername === ws.username;
+
+              if (!isSameClient && !isSameUser) {
+                console.log(`⚠️ 拒绝非法结束比赛: matchId=${mid}, 发送方=${ws.username || 'guest'}`);
+                ws.send(JSON.stringify({ type: 'CONTROL_REJECTED', payload: { matchId: mid } }));
+                return;
+              }
+              console.log(`🏆 比赛 [${mid}] 已结束并提交，清除其实时广播状态及弹幕记录`);
+              delete globalLiveMatches[mid];
+              broadcast({ type: 'STATE_SYNC', payload: globalLiveMatches });
+            }
           } else {
             // 回退处理：如果没有发 matchId，则清空所有（兼容老逻辑）
             console.log('🏆 收到未指定ID的比赛结束信号，清除所有进行中比赛及弹幕记录');
@@ -670,7 +793,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log(`🔌 客户端断开 WebSocket 连接 (ID: ${ws.id}, Account: ${ws.username || 'guest'})`);
+    console.log(`[DEBUG] [CLOSE] 🔌 客户端断开 WebSocket 连接 (ID: ${ws.id}, Account: ${ws.username || 'guest'})`);
     // 🚨 核心调整：比赛控制权绑定在登录账号上，连接断开不再主动清空控制权。
     // 这允许裁判在网络瞬断或刷新页面时，重新建立连接后直接重新绑定身份恢复控制权，体验更佳。
   });

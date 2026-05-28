@@ -168,14 +168,30 @@ function LiveMatchCard({ matchId, data }) {
     destroyPlayer();
     if (!videoRef.current) return;
 
-    console.log(`🎬 准备拉取比赛 [${matchId}] 的 WebRTC 极速视频流: ${streamUrl}`);
+    // 自校准流地址的 Host：如果拉流地址是 webrtc:// 协议，我们自动将其中的 host 替换为当前大屏浏览器所访问的 host。
+    // 这样无论裁判是在内网、localhost 还是通过其他 IP 登录记分控制台生成的流地址，观众大屏都能以自己访问的域名/IP 准确拉到流。
+    let finalStreamUrl = streamUrl;
+    if (streamUrl && streamUrl.startsWith('webrtc://')) {
+      try {
+        const urlPart = streamUrl.replace('webrtc://', '');
+        const slashIndex = urlPart.indexOf('/');
+        if (slashIndex !== -1) {
+          const path = urlPart.substring(slashIndex);
+          finalStreamUrl = `webrtc://${window.location.hostname}${path}`;
+        }
+      } catch (e) {
+        console.warn('解析或重写 WebRTC 播放地址失败，使用原地址:', e);
+      }
+    }
+
+    console.log(`🎬 准备拉取比赛 [${matchId}] 的 WebRTC 极速视频流: ${finalStreamUrl}`);
     const SrsRtcPlayerAsync = window.SrsRtcPlayerAsync;
     if (typeof SrsRtcPlayerAsync !== 'undefined') {
       try {
         const player = new SrsRtcPlayerAsync();
         playerRef.current = player;
 
-        player.play(streamUrl).then(() => {
+        player.play(finalStreamUrl).then(() => {
           console.log(`✅ 比赛 [${matchId}] WebRTC 握手成功，开始播放`);
           if (videoRef.current) {
             videoRef.current.muted = !soundEnabled;

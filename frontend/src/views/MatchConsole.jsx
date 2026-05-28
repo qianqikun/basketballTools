@@ -6,7 +6,7 @@ import './MatchConsole.css';
 
 export default function MatchConsole({ match, onBack }) {
   const { store, saveStore, currentUser } = useApp();
-  const { sendWsMessage, registerControlCallbacks } = useWebSocket();
+  const { sendWsMessage, registerControlCallbacks, liveMatches } = useWebSocket();
 
   // 精密倒计时 Hook
   const {
@@ -143,9 +143,12 @@ export default function MatchConsole({ match, onBack }) {
 
     controlPendingRef.current = true;
 
+    const serverMatch = liveMatches && liveMatches[match.id];
     const saved = localStorage.getItem('hoops_manager_live_match');
     let restored = null;
-    if (saved) {
+    if (serverMatch) {
+      restored = serverMatch;
+    } else if (saved) {
       try {
         const liveData = JSON.parse(saved);
         if (liveData.matchId === match.id) {
@@ -235,6 +238,13 @@ export default function MatchConsole({ match, onBack }) {
       sendStartSignal(currentFields);
     } else {
       setOverlayType('error');
+      if (payload.error) {
+        setOverlayMessage('获取控制权失败');
+        setOverlaySubtext(payload.error);
+        alert(`❌ ${payload.error}`);
+        onBack();
+        return;
+      }
       setOverlayMessage('该比赛已被占用');
       setOverlaySubtext('另一台设备正在控制此比赛。');
 
@@ -248,15 +258,19 @@ export default function MatchConsole({ match, onBack }) {
           controlPendingRef.current = false;
           onBack();
         }
-      }, 50);
+      }, 500);
     }
   };
 
-  // 被强制接管踢出
+  // 被强制接管踢出或因控制新比赛而自动断开
   const handleControlLost = (payload) => {
     if (payload.matchId === match.id) {
       stopClock();
-      alert('⚠️ 您的控制权已被另一台设备强制接管！\n为防止比分冲突，已安全退出控制面板。');
+      if (payload.reason === 'another_control_started') {
+        alert('⚠️ 您已在其他设备或页面开始控制新的比赛，当前比赛控制已自动断开。');
+      } else {
+        alert('⚠️ 您的控制权已被另一台设备强制接管！\n为防止比分冲突，已安全退出控制面板。');
+      }
       onBack();
     }
   };

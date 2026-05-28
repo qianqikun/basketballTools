@@ -475,6 +475,16 @@ export default function App() {
               <i className="bx bx-group"></i> 用户管理
             </button>
           )}
+          {/* 移动端专属：退出登录按钮 */}
+          <div className="mobile-only nav-divider"></div>
+          <button className="mobile-only danger-btn" onClick={handleLogoutClick}>
+            <i className="bx bx-log-out"></i> 退出登录
+          </button>
+          {isAdmin && (
+            <button className="mobile-only danger-btn" onClick={triggerResetAll}>
+              <i className="bx bx-reset"></i> 重置所有数据
+            </button>
+          )}
         </nav>
         <div className="sidebar-footer">
           {currentUser && (

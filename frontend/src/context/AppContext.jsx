@@ -79,6 +79,7 @@ export const AppProvider = ({ children }) => {
         }
       } catch (err) {
         console.error('身份校验失败，将降级使用空数据', err);
+        logout();
       } finally {
         setAuthLoading(false);
       }

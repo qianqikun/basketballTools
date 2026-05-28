@@ -140,25 +140,30 @@ const calculateStandings = (matches, groupTeams) => {
   return list;
 };
 
-// 提取对阵列表中实际参与的所有队伍
-const extractTeamsFromMatches = (matches) => {
-  const teamsMap = {};
-  matches.forEach(m => {
-    if (m.team1 && m.team1.id && !m.team1.isBye) {
-      teamsMap[m.team1.id] = m.team1;
-    }
-    if (m.team2 && m.team2.id && !m.team2.isBye) {
-      teamsMap[m.team2.id] = m.team2;
-    }
-  });
-  return Object.values(teamsMap);
+// 动态字母组名生成 (例如 count=3 返回 ['A', 'B', 'C'])
+const getGroupNames = (count) => {
+  const names = [];
+  for (let i = 0; i < count; i++) {
+    names.push(String.fromCharCode(65 + i));
+  }
+  return names;
+};
+
+// 动态计算合法的偶数小组数量，每组至少2支队伍
+const getValidEvenGroupCounts = (count) => {
+  const options = [];
+  const maxGroups = Math.floor(count / 2);
+  for (let g = 2; g <= maxGroups; g += 2) {
+    options.push(g);
+  }
+  return options;
 };
 
 // 3. 小组循环赛完赛后，一键生成淘汰赛对决
 const generatePlayoffMatches = (tournament) => {
   const { type, promoCount, groupCount, currentMatches, groups } = tournament;
 
-  // 1. 计算各个小组的最终积分榜
+  // 1. 计算各个小组 the 最终积分榜
   const standings = {};
   if (type === 'single_group') {
     standings['single'] = calculateStandings(currentMatches, tournament.activeTeams);
@@ -213,66 +218,76 @@ const generatePlayoffMatches = (tournament) => {
       }
     }
   } else {
-    // 多小组出线交叉淘汰
-    if (groupCount === 2) {
-      const aList = promoTeams['A'] || [];
-      const bList = promoTeams['B'] || [];
-      nextActiveTeams.push(...aList, ...bList);
+    // 多小组出线交叉淘汰：兼容任意小组数量和每组晋级人数
+    
+    // 1. 收集所有各小组晋级队伍，并打入最终活跃队伍列表
+    const groupNames = Object.keys(promoTeams).sort(); // 按 A, B, C 字母顺序
+    groupNames.forEach(gName => {
+      const list = promoTeams[gName] || [];
+      nextActiveTeams.push(...list);
+    });
 
-      if (promoCount === 2) {
-        // 4支队：半决赛 A1-B2, B1-A2
-        nextMatches.push(
-          { id: `r1_m1`, team1: aList[0], team2: bList[1], completed: false, winner: null, score1: 0, score2: 0 },
-          { id: `r1_m2`, team1: bList[0], team2: aList[1], completed: false, winner: null, score1: 0, score2: 0 }
-        );
-      } else if (promoCount === 1) {
-        // 2支队：直接决赛 A1-B1
-        nextMatches.push(
-          { id: `r1_m1`, team1: aList[0], team2: bList[0], completed: false, winner: null, score1: 0, score2: 0 }
-        );
+    // 2. 建立 ranks 矩阵。ranks[i] 包含了各小组的第 i+1 名
+    const ranks = [];
+    for (let i = 0; i < promoCount; i++) {
+      const rankTeams = [];
+      groupNames.forEach(gName => {
+        const list = promoTeams[gName] || [];
+        if (list[i]) {
+          rankTeams.push(list[i]);
+        }
+      });
+      ranks.push(rankTeams);
+    }
+
+    // 3. 对称折叠交叉配对（因为组数 M 必定是偶数，首轮参赛队数 N = M * P 也必然是偶数）
+    let i = 0;
+    let j = promoCount - 1;
+    let mCount = 1;
+    const M = groupNames.length;
+    const shift = Math.floor(M / 2);
+
+    while (i <= j) {
+      if (i < j) {
+        // 高顺位与低顺位交叉对决（如第一名 vs 最后一名，第 i 名层 vs 第 j 名层）
+        // 结合移位 shift 避免同组
+        for (let k = 0; k < M; k++) {
+          const t1 = ranks[i][k];
+          const t2 = ranks[j][(k + shift) % M];
+          if (t1 && t2) {
+            nextMatches.push({
+              id: `r1_m${mCount++}`,
+              team1: t1,
+              team2: t2,
+              completed: false,
+              winner: null,
+              score1: 0,
+              score2: 0
+            });
+          }
+        }
       } else {
-        const combined = [...aList, ...bList];
-        let mCount = 1;
-        for (let i = 0; i < combined.length; i += 2) {
-          if (i + 1 < combined.length) {
-            nextMatches.push({ id: `r1_m${mCount++}`, team1: combined[i], team2: combined[i+1], completed: false, winner: null, score1: 0, score2: 0 });
-          } else {
-            nextMatches.push({ id: `r1_m${mCount++}`, team1: combined[i], team2: null, completed: true, winner: combined[i], score1: 0, score2: 0, isBye: true });
+        // 当 promoCount 是奇数时，剩下一层最中间的名次（i === j）
+        const midList = ranks[i];
+        // 对 midList 内部进行前半段 vs 后半段交叉碰，彻底避免同组
+        for (let k = 0; k < shift; k++) {
+          const t1 = midList[k];
+          const t2 = midList[k + shift];
+          if (t1 && t2) {
+            nextMatches.push({
+              id: `r1_m${mCount++}`,
+              team1: t1,
+              team2: t2,
+              completed: false,
+              winner: null,
+              score1: 0,
+              score2: 0
+            });
           }
         }
       }
-    } else if (groupCount === 4) {
-      const aList = promoTeams['A'] || [];
-      const bList = promoTeams['B'] || [];
-      const cList = promoTeams['C'] || [];
-      const dList = promoTeams['D'] || [];
-      nextActiveTeams.push(...aList, ...bList, ...cList, ...dList);
-
-      if (promoCount === 2) {
-        // 8支队：四分之一决赛 A1-B2, C1-D2, B1-A2, D1-C2
-        nextMatches.push(
-          { id: `r1_m1`, team1: aList[0], team2: bList[1], completed: false, winner: null, score1: 0, score2: 0 },
-          { id: `r1_m2`, team1: cList[0], team2: dList[1], completed: false, winner: null, score1: 0, score2: 0 },
-          { id: `r1_m3`, team1: bList[0], team2: aList[1], completed: false, winner: null, score1: 0, score2: 0 },
-          { id: `r1_m4`, team1: dList[0], team2: cList[1], completed: false, winner: null, score1: 0, score2: 0 }
-        );
-      } else if (promoCount === 1) {
-        // 4支队：半决赛 A1-B1, C1-D1
-        nextMatches.push(
-          { id: `r1_m1`, team1: aList[0], team2: bList[0], completed: false, winner: null, score1: 0, score2: 0 },
-          { id: `r1_m2`, team1: cList[0], team2: dList[0], completed: false, winner: null, score1: 0, score2: 0 }
-        );
-      } else {
-        const combined = [...aList, ...bList, ...cList, ...dList];
-        let mCount = 1;
-        for (let i = 0; i < combined.length; i += 2) {
-          if (i + 1 < combined.length) {
-            nextMatches.push({ id: `r1_m${mCount++}`, team1: combined[i], team2: combined[i+1], completed: false, winner: null, score1: 0, score2: 0 });
-          } else {
-            nextMatches.push({ id: `r1_m${mCount++}`, team1: combined[i], team2: null, completed: true, winner: combined[i], score1: 0, score2: 0, isBye: true });
-          }
-        }
-      }
+      i++;
+      j--;
     }
   }
 
@@ -294,6 +309,7 @@ const generatePlayoffMatches = (tournament) => {
   };
 };
 
+
 export default function DrawView({ onStartMatch }) {
   const { store, saveStore, loadStore, currentUser } = useApp();
   const { sendWsMessage } = useWebSocket();
@@ -309,9 +325,8 @@ export default function DrawView({ onStartMatch }) {
   const [isGroupStandingsOpen, setIsGroupStandingsOpen] = useState(true); // 淘汰赛阶段控制循环赛积分榜展开/收起
 
   // 计算合法均分的可选状态
-  const canDiv2 = teams.length >= 4 && teams.length % 2 === 0;
-  const canDiv4 = teams.length >= 8 && teams.length % 4 === 0;
-  const canMultiGroup = canDiv2 || canDiv4;
+  const validGroupCounts = getValidEvenGroupCounts(teams.length);
+  const canMultiGroup = validGroupCounts.length > 0;
 
   // 1. 当球队总数变动，导致当前选中的多小组循环赛不合法时，自动回退到淘汰赛
   useEffect(() => {
@@ -320,23 +335,23 @@ export default function DrawView({ onStartMatch }) {
     }
   }, [teams.length, formatType, canMultiGroup]);
 
-  // 2. 当选中多小组循环赛时，若选中的小组数在当前人数下无法均分，自动切换为可整除的小组数
+  // 2. 当选中多小组循环赛时，若选中的小组数在当前人数下非法，自动重置为第一个合法的小组数
   useEffect(() => {
     if (formatType === 'multi_group') {
-      if (groupCount === 4 && !canDiv4) {
-        setGroupCount(2);
+      if (!validGroupCounts.includes(groupCount)) {
+        setGroupCount(validGroupCounts[0] || 2);
       }
     }
-  }, [formatType, groupCount, teams.length, canDiv4]);
+  }, [formatType, groupCount, teams.length, validGroupCounts]);
 
-  // 3. 当晋级人数超过每组（或大组）人数上限时，自动调降晋级名额数以防产生越界/无意义赛程
+  // 3. 当晋级人数超过最小小组人数上限时，自动调降晋级名额数以防产生越界/无意义赛程
   useEffect(() => {
-    const groupSize = formatType === 'single_group' 
+    const minGroupSize = formatType === 'single_group' 
       ? teams.length 
-      : (formatType === 'multi_group' ? teams.length / groupCount : 99);
+      : (formatType === 'multi_group' ? Math.floor(teams.length / groupCount) : 99);
     
-    // 每组晋级人数必须严格小于每组球队总数
-    const maxPromo = groupSize - 1;
+    // 每组晋级人数必须严格小于最小组球队数
+    const maxPromo = minGroupSize - 1;
     if (promoCount > maxPromo && maxPromo >= 1) {
       setPromoCount(Math.max(1, Math.floor(maxPromo)));
     }
@@ -416,21 +431,18 @@ export default function DrawView({ onStartMatch }) {
     // 多小组循环赛防呆校验
     if (formatType === 'multi_group') {
       if (!canMultiGroup) {
-        alert(`当前已报名球队数量 (${teams.length} 支) 无法被 2 或 4 个小组等分，请重新选择赛制！`);
+        alert('当前已报名球队数量过少，无法进行多小组循环赛！');
         return;
       }
-      if (groupCount === 2 && !canDiv2) {
-        alert(`当前队伍数 (${teams.length} 支) 无法被 2 组均分！`);
-        return;
-      }
-      if (groupCount === 4 && !canDiv4) {
-        alert(`当前队伍数 (${teams.length} 支) 无法被 4 组均分！`);
+      const validGroupCounts = getValidEvenGroupCounts(teams.length);
+      if (!validGroupCounts.includes(groupCount)) {
+        alert(`当前队伍数 (${teams.length} 支) 无法分为 ${groupCount} 个小组！`);
         return;
       }
 
-      const groupSize = teams.length / groupCount;
-      if (groupSize <= promoCount) {
-        alert(`每组球队数 (${groupSize} 支) 必须大于每组出线晋级名额 (${promoCount} 支)！`);
+      const minGroupSize = Math.floor(teams.length / groupCount);
+      if (minGroupSize <= promoCount) {
+        alert(`人数最少的小组球队数 (${minGroupSize} 支) 必须大于每组出线晋级名额 (${promoCount} 支)！`);
         return;
       }
     }
@@ -500,19 +512,19 @@ export default function DrawView({ onStartMatch }) {
       });
     } else if (formatType === 'multi_group') {
       // 3. 多小组循环赛抽签
-      const teamsPerGroup = teams.length / groupCount;
-      if (teamsPerGroup < 2) {
+      const minGroupSize = Math.floor(teams.length / groupCount);
+      if (minGroupSize < 2) {
         alert(`队伍太少，无法分配到 ${groupCount} 个小组内，请选择更少的小组数！`);
         return;
       }
-      if (teamsPerGroup <= promoCount) {
+      if (minGroupSize <= promoCount) {
         alert(`每个小组内的球队数不多于每组出线名额（${promoCount}人），请修改出线名额！`);
         return;
       }
 
       const shuffled = [...teams].sort(() => Math.random() - 0.5);
       const groups = {};
-      const groupNames = groupCount === 2 ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+      const groupNames = getGroupNames(groupCount);
 
       groupNames.forEach(name => {
         groups[name] = [];
@@ -597,6 +609,10 @@ export default function DrawView({ onStartMatch }) {
   };
 
   const handleStartMatch = async (match) => {
+    if (!currentUser) {
+      alert('❌ 游客无法控制比赛，请先登录账号！');
+      return;
+    }
     await loadStore();
     onStartMatch(match);
   };
@@ -632,13 +648,13 @@ export default function DrawView({ onStartMatch }) {
                 </div>
               </label>
 
-              <label className={`format-option-label ${formatType === 'multi_group' ? 'active' : ''} ${!canMultiGroup ? 'disabled' : ''}`} title={!canMultiGroup ? "球队数量不能被组数整除，或队伍不足，禁用此赛制以保证公平" : ""}>
+              <label className={`format-option-label ${formatType === 'multi_group' ? 'active' : ''} ${!canMultiGroup ? 'disabled' : ''}`} title={!canMultiGroup ? "球队数量过少，无法进行多小组循环赛" : ""}>
                 <input type="radio" name="formatType" value="multi_group" checked={formatType === 'multi_group'} disabled={!canMultiGroup} onChange={() => setFormatType('multi_group')} />
                 <div className="option-info">
                   <span className="title">多小组循环赛 (Multi-Group Round Robin)</span>
                   <span className="desc">
                     {!canMultiGroup 
-                      ? `⚠️ 球队数 (${teams.length} 支) 无法在 2 或 4 个小组间等分，已禁用。` 
+                      ? `⚠️ 球队数 (${teams.length} 支) 过少，无法进行多小组循环赛（至少需要 4 支队伍）。` 
                       : "球队分入多个小组进行组内单循环，各组优胜者出线交叉淘汰。"}
                   </span>
                 </div>
@@ -651,26 +667,40 @@ export default function DrawView({ onStartMatch }) {
               <label>2. 设置小组数量</label>
               <div className="input-group">
                 <select value={groupCount} onChange={(e) => setGroupCount(Number(e.target.value))}>
-                  <option value={2} disabled={!canDiv2}>分 2 个小组 (A, B 组) {!canDiv2 ? `(需队伍数能被2整除，且至少4队)` : ""}</option>
-                  <option value={4} disabled={!canDiv4}>分 4 个小组 (A, B, C, D 组) {!canDiv4 ? `(需队伍数能被4整除，且至少8队)` : ""}</option>
+                  {validGroupCounts.map(count => (
+                    <option key={count} value={count}>
+                      分 {count} 个小组 ({getGroupNames(count).join(', ')} 组)
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           )}
 
-          {(formatType === 'single_group' || formatType === 'multi_group') && (
-            <div className="config-item sub-config">
-              <label>{formatType === 'single_group' ? '2. 设置出线进入淘汰赛的名额' : '3. 设置每个小组的出线名额'}</label>
-              <div className="input-group">
-                <select value={promoCount} onChange={(e) => setPromoCount(Number(e.target.value))}>
-                  <option value={1} disabled={groupSize <= 1}>第 1 名出线</option>
-                  <option value={2} disabled={groupSize <= 2}>前 2 名出线 {groupSize <= 2 ? `(需每组至少3队)` : ""}</option>
-                  {formatType === 'single_group' && <option value={4} disabled={groupSize <= 4}>前 4 名出线 {groupSize <= 4 ? `(需大组至少5队)` : ""}</option>}
-                  {formatType === 'multi_group' && groupCount === 2 && <option value={3} disabled={groupSize <= 3}>前 3 名出线 {groupSize <= 3 ? `(需每组至少4队)` : ""}</option>}
-                </select>
+          {(formatType === 'single_group' || formatType === 'multi_group') && (() => {
+            const minGroupSize = formatType === 'single_group' 
+              ? teams.length 
+              : Math.floor(teams.length / groupCount);
+            const maxPromo = Math.max(1, minGroupSize - 1);
+            const promoOptions = [];
+            for (let p = 1; p <= maxPromo; p++) {
+              promoOptions.push(p);
+            }
+            return (
+              <div className="config-item sub-config">
+                <label>{formatType === 'single_group' ? '2. 设置出线进入淘汰赛的名额' : '3. 设置每个小组的出线名额'}</label>
+                <div className="input-group">
+                  <select value={promoCount} onChange={(e) => setPromoCount(Number(e.target.value))}>
+                    {promoOptions.map(p => (
+                      <option key={p} value={p}>
+                        {p === 1 ? '第 1 名出线' : `前 ${p} 名出线`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="config-actions">
             {isAdmin ? (
@@ -825,7 +855,7 @@ export default function DrawView({ onStartMatch }) {
         );
       } else if (t.type === 'multi_group') {
         // 多小组赛制
-        const groupNames = t.groupCount === 2 ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+        const groupNames = getGroupNames(t.groupCount);
         return (
           <div className="group-stage-container">
             {isAdmin && allMatchesCompleted && (
@@ -898,7 +928,7 @@ export default function DrawView({ onStartMatch }) {
                   )
                 ) : (
                   <div className={`evolved-multi-groups ${t.groupCount === 4 ? 'four-groups' : ''}`}>
-                    {(t.groupCount === 2 ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(gName => {
+                    {getGroupNames(t.groupCount).map(gName => {
                       const gMatches = groupHistory.matches.filter(m => m.group === gName);
                       const gTeams = extractTeamsFromMatches(gMatches);
                       const gStandings = calculateStandings(gMatches, gTeams);

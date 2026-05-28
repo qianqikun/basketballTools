@@ -6,7 +6,7 @@ const WebSocketContext = createContext(null);
 export const useWebSocket = () => useContext(WebSocketContext);
 
 export const WebSocketProvider = ({ children }) => {
-  const { token } = useApp();
+  const { token, logout } = useApp();
   const [connected, setConnected] = useState(false);
   const [liveMatches, setLiveMatches] = useState({});
 
@@ -50,6 +50,7 @@ export const WebSocketProvider = ({ children }) => {
 
   useEffect(() => {
     let reconnectTimer = null;
+    let isMounted = true; // 挂载状态标识
 
     const connect = () => {
       try {
@@ -62,6 +63,7 @@ export const WebSocketProvider = ({ children }) => {
         wsRef.current = ws;
 
         ws.onopen = () => {
+          if (!isMounted) return;
           console.log('📡 实时比分同步连接已建立');
           setConnected(true);
 
@@ -78,11 +80,16 @@ export const WebSocketProvider = ({ children }) => {
         };
 
         ws.onmessage = (event) => {
+          if (!isMounted) return;
           try {
             const message = JSON.parse(event.data);
             switch (message.type) {
               case 'STATE_SYNC':
                 setLiveMatches(message.payload || {});
+                break;
+              case 'AUTH_FAILED':
+                alert('⚠️ 您的登录会话已失效，请重新登录！');
+                logout();
                 break;
               case 'DANMAKU':
                 if (message.payload && message.payload.matchId) {
@@ -97,6 +104,7 @@ export const WebSocketProvider = ({ children }) => {
                 }
                 break;
               case 'CONTROL_LOST':
+              case 'CONTROL_REJECTED':
                 if (controlCallbacksRef.current.onLost) {
                   controlCallbacksRef.current.onLost(message.payload);
                 }
@@ -108,15 +116,21 @@ export const WebSocketProvider = ({ children }) => {
         };
 
         ws.onerror = (err) => {
+          if (!isMounted) return;
           console.error('WebSocket 连接发生错误:', err);
         };
 
         ws.onclose = () => {
+          if (!isMounted) {
+            console.log('🔌 旧的 WebSocket 连接已由系统主动销毁，跳过自动重连。');
+            return;
+          }
           console.warn('实时同步连接已断开，3秒后自动尝试重连...');
           setConnected(false);
           reconnectTimer = setTimeout(() => connect(), 3000);
         };
       } catch (err) {
+        if (!isMounted) return;
         console.error('创建 WebSocket 实例失败', err);
         reconnectTimer = setTimeout(() => connect(), 3000);
       }
@@ -125,6 +139,7 @@ export const WebSocketProvider = ({ children }) => {
     connect();
 
     return () => {
+      isMounted = false; // 阻断所有旧长连接回调和重连行为
       clearTimeout(reconnectTimer);
       if (wsRef.current) {
         wsRef.current.close();

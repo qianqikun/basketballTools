@@ -191,7 +191,7 @@
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "clock clock"
-      "home away";
+      "away home";
     gap: 0.75rem;
     align-items: stretch;
   }
