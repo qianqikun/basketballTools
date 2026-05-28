@@ -26,11 +26,20 @@ if ! [ -x "$(command -v docker-compose)" ] && ! docker compose version &>/dev/nu
   exit 1
 fi
 
-# 2. 清理可能存在的旧容器，防止端口冲突
+# 2. 拉取子模块最新代码（main 分支）
+echo -e "\n${YELLOW}🔄 正在拉取子模块 (worldCupTool) 最新代码 (main 分支)...${NC}"
+git submodule update --init --remote --merge
+if [ $? -eq 0 ]; then
+  echo -e "✅ ${GREEN}子模块更新成功！${NC}"
+else
+  echo -e "⚠️  ${YELLOW}警告: 子模块更新失败，将使用当前已有版本继续部署。${NC}"
+fi
+
+# 3. 清理可能存在的旧容器，防止端口冲突
 echo -e "\n${YELLOW}🔄 正在清理旧版本的容器和缓存...${NC}"
 docker compose down
 
-# 3. 编译并后台启动容器
+# 4. 编译并后台启动容器
 echo -e "\n${YELLOW}🏗️ 正在构建 Docker 镜像并启动容器 (后台运行)...${NC}"
 if docker compose up -d --build; then
   echo -e "✅ ${GREEN}容器启动成功！${NC}"
@@ -39,7 +48,7 @@ else
   exit 1
 fi
 
-# 4. 获取局域网 IP 以方便手机或多端真机测试
+# 5. 获取局域网 IP 以方便手机或多端真机测试
 LOCAL_IP="127.0.0.1"
 if [[ "$OSTYPE" == "darwin"* ]]; then
   # Mac 环境
@@ -49,7 +58,7 @@ else
   LOCAL_IP=$(hostname -I | awk '{print $1}')
 fi
 
-# 5. 展示精美的部署结果
+# 6. 展示精美的部署结果
 echo -e "\n${CYAN}====================================================${NC}"
 echo -e "🎉 ${GREEN}部署成功！项目已在 Docker 容器中平稳运行！${NC}"
 echo -e "${CYAN}====================================================${NC}"

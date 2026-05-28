@@ -45,7 +45,16 @@ echo -e "\n${YELLOW}🔑 检查 Docker Hub 登录状态...${NC}"
 echo "提示：如果已登录会自动跳过，未登录请输入 Docker Hub 密码/Token 进行登录。"
 docker login
 
-# 3. 执行 AMD64 (云服务器 x86) 架构编译与推送
+# 3. 拉取子模块最新代码（main 分支）
+echo -e "\n${YELLOW}🔄 正在拉取子模块 (worldCupTool) 最新代码 (main 分支)...${NC}"
+git submodule update --init --remote --merge
+if [ $? -eq 0 ]; then
+  echo -e "✅ ${GREEN}子模块更新成功！${NC}"
+else
+  echo -e "⚠️  ${YELLOW}警告: 子模块更新失败，将使用当前已有版本继续构建。${NC}"
+fi
+
+# 4. 执行 AMD64 (云服务器 x86) 架构编译与推送
 # 💡 为什么仅编译并推送 AMD64 架构镜像？
 # 1. 生产环境云服务器绝大多数都是 x86_64/AMD64 架构，Docker Hub 上提供 AMD64 镜像即可完美部署上线。
 # 2. 不编译 ARM64（Mac 架构）推送到 Docker Hub 可以完美规避代理软件对大体积（110MB+）基础层上传时产生的 "broken pipe" 或连接断开报错。
@@ -73,7 +82,7 @@ else
   exit 1
 fi
 
-# 5. 生成目标服务器部署文件
+# 6. 生成目标服务器部署文件
 echo -e "\n${YELLOW}📄 正在本地为您生成服务器一键部署的 docker-compose.prod.yml ...${NC}"
 
 cat <<EOF > docker-compose.prod.yml

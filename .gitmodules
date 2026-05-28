@@ -1,3 +1,4 @@
 [submodule "worldCupTool"]
 	path = worldCupTool
 	url = git@github.com:qianqikun/worldCupTool.git
+	branch = main
