@@ -27,7 +27,7 @@ db.serialize(() => {
   `);
 
   // 插入一条初始数据（如果还不存在的话）
-  const initialData = JSON.stringify({ teams: [], tournament: null, pastTournaments: [] });
+  const initialData = JSON.stringify({ teams: [], tournaments: [], pastTournaments: [] });
   db.run(`
     INSERT OR IGNORE INTO app_data (id, json_data) VALUES (1, ?)
   `, [initialData]);
@@ -77,16 +77,53 @@ db.serialize(() => {
 // 获取数据
 const getData = () => {
   return new Promise((resolve, reject) => {
-    db.get(`SELECT json_data FROM app_data WHERE id = 1`, (err, row) => {
+    db.get(`SELECT json_data FROM app_data WHERE id = 1`, async (err, row) => {
       if (err) return reject(err);
       if (row) {
         try {
-          resolve(JSON.parse(row.json_data));
+          let data = JSON.parse(row.json_data);
+          let needSave = false;
+          if (!data.tournaments) {
+            data.tournaments = [];
+            needSave = true;
+          }
+          if (data.hasOwnProperty('tournament') && data.tournament && typeof data.tournament === 'object') {
+            const legacyT = { ...data.tournament };
+            if (!legacyT.id) {
+              legacyT.id = 'tour_legacy';
+            }
+            if (!legacyT.name) {
+              legacyT.name = '正式杯赛';
+            }
+            if (legacyT.currentMatches) {
+              legacyT.currentMatches = legacyT.currentMatches.map(m => ({
+                ...m,
+                tournamentId: legacyT.id,
+                tournamentName: legacyT.name
+              }));
+            }
+            if (!data.tournaments.some(t => t.id === legacyT.id)) {
+              data.tournaments.push(legacyT);
+            }
+            data.tournament = null;
+            needSave = true;
+          }
+          if (needSave) {
+            console.log('🔄 [DB Migration] 检测到旧赛程格式，自动迁移为多赛程格式并在后端存盘...');
+            await new Promise((resSave, rejSave) => {
+              const jsonStr = JSON.stringify(data);
+              db.run(`UPDATE app_data SET json_data = ? WHERE id = 1`, [jsonStr], function(errSave) {
+                if (errSave) return rejSave(errSave);
+                resSave();
+              });
+            });
+          }
+          resolve(data);
         } catch(e) {
-          resolve({ teams: [], tournament: null, pastTournaments: [] });
+          resolve({ teams: [], tournaments: [], pastTournaments: [] });
         }
       } else {
-        resolve({ teams: [], tournament: null, pastTournaments: [] });
+        resolve({ teams: [], tournaments: [], pastTournaments: [] });
       }
     });
   });

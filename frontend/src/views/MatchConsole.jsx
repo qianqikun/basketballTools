@@ -117,6 +117,7 @@ export default function MatchConsole({ match, onBack }) {
     sendWsMessage('MATCH_START', {
       matchId: match.id,
       roundName: match.roundName || '',
+      tournamentName: match.tournamentName || '',
       home: {
         name: match.team1.name,
         score: currentFields.homeScore !== undefined ? currentFields.homeScore : homeScore,
@@ -398,7 +399,17 @@ export default function MatchConsole({ match, onBack }) {
     if (confirm('确定要结束本场比赛并提交比分吗？提交后无法修改。')) {
       stopClock();
       
-      const tState = { ...store.tournament };
+      const tournaments = store.tournaments || [];
+      const tourIndex = tournaments.findIndex(tour => 
+        tour.currentMatches && tour.currentMatches.some(m => m.id === match.id)
+      );
+
+      if (tourIndex === -1) {
+        alert('未找到该场比赛所属的活动赛程，可能该赛程已被归档。');
+        return;
+      }
+
+      const tState = { ...tournaments[tourIndex] };
       const matchIndex = tState.currentMatches.findIndex(m => m.id === match.id);
       
       if (matchIndex !== -1) {
@@ -442,7 +453,10 @@ export default function MatchConsole({ match, onBack }) {
         localStorage.removeItem('hoops_manager_active_match_id');
 
         // 保存锦标赛状态
-        saveStore('tournament', tState);
+        const updatedTournaments = tournaments.map((tour, idx) => 
+          idx === tourIndex ? tState : tour
+        );
+        saveStore({ tournaments: updatedTournaments });
         
         // 比赛结束广播，清除大屏看版
         sendWsMessage('MATCH_END', { matchId: match.id });
@@ -491,6 +505,7 @@ export default function MatchConsole({ match, onBack }) {
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(larixUrl)}`;
 
   const refereeText = currentUser ? ` (执裁裁判: ${currentUser.nickname})` : '';
+  const tournamentNameText = match.tournamentName ? ` [${match.tournamentName}]` : '';
 
   return (
     <section id="match" className="view-section active" style={{ display: 'block' }}>
@@ -514,7 +529,7 @@ export default function MatchConsole({ match, onBack }) {
 
       <div className="scoreboard-container" id="match-scoreboard-container" style={{ filter: overlayType ? 'blur(8px)' : 'none', pointerEvents: overlayType ? 'none' : 'auto' }}>
         <div className="match-info-bar">
-          <span>当前对阵{refereeText}</span>
+          <span>当前对阵{tournamentNameText}{refereeText}</span>
           <button id="back-to-tournament" className="secondary-btn" onClick={handleExit}>
             <i className="bx bx-arrow-back"></i> 返回对阵
           </button>

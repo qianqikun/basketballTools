@@ -205,10 +205,13 @@ const renderHistoryStandingsTable = (standings, pCount) => {
 
 export default function HistoryView() {
   const { store } = useApp();
-  const currentT = store.tournament;
+  const tournaments = store.tournaments || [];
   const pastT = store.pastTournaments || [];
 
-  const isEmpty = (!currentT || !currentT.history || currentT.history.length === 0) && pastT.length === 0;
+  // 筛选出有历史战绩的当前进行中的赛程
+  const activeTours = tournaments.filter(t => t.history && t.history.length > 0);
+
+  const isEmpty = activeTours.length === 0 && pastT.length === 0;
 
   const renderRoundMatches = (matches) => {
     return (
@@ -332,18 +335,18 @@ export default function HistoryView() {
       </header>
       <div className="history-container">
         <div id="bracket-container" className="bracket-wrapper">
-          {/* 1. 当前进行中的赛程 */}
-          {currentT && currentT.history && currentT.history.length > 0 && (
-            <div className="history-tournament-card current">
+          {/* 1. 当前进行中的赛程列表 */}
+          {activeTours.map((t) => (
+            <div key={t.id} className="history-tournament-card current">
               <div className="history-tournament-header">
                 <h2 className="history-tournament-title current">
-                  <i className="bx bx-play-circle"></i> 当前进行中的赛程
+                  <i className="bx bx-play-circle"></i> {t.name || '进行中的赛程'}
                 </h2>
                 <span className="history-tournament-live-badge">LIVE</span>
               </div>
-              {renderTournamentHistory(currentT.history, currentT)}
+              {renderTournamentHistory(t.history, t)}
             </div>
-          )}
+          ))}
 
           {/* 2. 往届归档记录 */}
           {reversedPast.length > 0 && (
@@ -352,11 +355,13 @@ export default function HistoryView() {
                 <i className="bx bx-archive"></i> 往届归档记录
               </h2>
               {reversedPast.map((t, tIdx) => {
-                const title = t.archivedAt ? `归档赛程 (${t.archivedAt})` : `归档赛程 ${reversedPast.length - tIdx}`;
+                const title = t.name 
+                  ? `${t.name} (归档于 ${t.archivedAt || '未知时间'})` 
+                  : (t.archivedAt ? `归档赛程 (${t.archivedAt})` : `归档赛程 ${reversedPast.length - tIdx}`);
                 const hasChampion = t.activeTeams && t.activeTeams.length === 1;
 
                 return (
-                  <div key={tIdx} className="history-tournament-card archived">
+                  <div key={t.id || tIdx} className="history-tournament-card archived">
                     <div className="history-tournament-header">
                       <h3 className="history-tournament-title">
                         <i className="bx bx-calendar-event"></i> {title}

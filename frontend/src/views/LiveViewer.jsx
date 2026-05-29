@@ -662,11 +662,18 @@ function LiveMatchCard({ matchId, data }) {
       </div>
 
       <div className="live-scoreboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%' }}>
-        {data.roundName && (
-          <span className="live-round-tag" style={{ display: 'inline-block' }}>
-            {data.roundName}
-          </span>
-        )}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {data.tournamentName && (
+            <span className="live-tour-tag" style={{ display: 'inline-block', backgroundColor: 'rgba(26, 115, 232, 0.1)', color: '#1a73e8', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
+              {data.tournamentName}
+            </span>
+          )}
+          {data.roundName && (
+            <span className="live-round-tag" style={{ display: 'inline-block' }}>
+              {data.roundName}
+            </span>
+          )}
+        </div>
         {data.referee && data.referee.nickname && (
           <span className="live-referee-info" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
             裁判: {data.referee.nickname}

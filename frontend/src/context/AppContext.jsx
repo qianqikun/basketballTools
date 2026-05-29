@@ -7,7 +7,7 @@ export const useApp = () => useContext(AppContext);
 export const AppProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('hoops_token') || null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [store, setStore] = useState({ teams: [], tournament: null, pastTournaments: [] });
+  const [store, setStore] = useState({ teams: [], tournaments: [], pastTournaments: [] });
   const [currentView, setCurrentView] = useState(localStorage.getItem('hoops_manager_current_view') || 'registration');
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -51,7 +51,7 @@ export const AppProvider = ({ children }) => {
       });
       const storeJson = await storeRes.json();
       if (storeJson.success) {
-        setStore(storeJson.data || { teams: [], tournament: null, pastTournaments: [] });
+        setStore(storeJson.data || { teams: [], tournaments: [], pastTournaments: [] });
       }
     } catch (err) {
       console.error('加载最新数据 store 失败:', err);

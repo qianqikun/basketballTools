@@ -389,7 +389,9 @@ export default function DrawView({ onStartMatch }) {
   const { sendWsMessage } = useWebSocket();
 
   const teams = store.teams || [];
-  const t = store.tournament;
+  const tournaments = store.tournaments || [];
+  const [activeTourId, setActiveTourId] = useState('');
+  const t = tournaments.find(tour => tour.id === activeTourId) || null;
   const isAdmin = currentUser && currentUser.role === 'admin';
 
   // 赛制配置面板状态
@@ -398,16 +400,32 @@ export default function DrawView({ onStartMatch }) {
   const [promoCount, setPromoCount] = useState(2); // 1 | 2 | 3
   const [isGroupStandingsOpen, setIsGroupStandingsOpen] = useState(true); // 淘汰赛阶段控制循环赛积分榜展开/收起
 
+  // 开启新赛程面板状态
+  const [newTourName, setNewTourName] = useState('');
+  const [selectedTeamIds, setSelectedTeamIds] = useState([]);
+
   // 计算合法均分的可选状态
-  const validGroupCounts = getValidEvenGroupCounts(teams.length);
+  const selectedCount = selectedTeamIds.length;
+  const validGroupCounts = getValidEvenGroupCounts(selectedCount);
   const canMultiGroup = validGroupCounts.length > 0;
 
-  // 1. 当球队总数变动，导致当前选中的多小组循环赛不合法时，自动回退到淘汰赛
+  // 当赛程数组改变时，校准选中的当前赛程
+  useEffect(() => {
+    if (tournaments.length > 0) {
+      if (!activeTourId || (!tournaments.some(tour => tour.id === activeTourId) && activeTourId !== 'create_new')) {
+        setActiveTourId(tournaments[0].id);
+      }
+    } else {
+      setActiveTourId('create_new');
+    }
+  }, [tournaments, activeTourId]);
+
+  // 1. 当勾选队伍总数变动，导致当前选中的多小组循环赛不合法时，自动回退到淘汰赛
   useEffect(() => {
     if (formatType === 'multi_group' && !canMultiGroup) {
       setFormatType('knockout');
     }
-  }, [teams.length, formatType, canMultiGroup]);
+  }, [selectedCount, formatType, canMultiGroup]);
 
   // 2. 当选中多小组循环赛时，若选中的小组数在当前人数下非法，自动重置为第一个合法的小组数
   useEffect(() => {
@@ -416,105 +434,63 @@ export default function DrawView({ onStartMatch }) {
         setGroupCount(validGroupCounts[0] || 2);
       }
     }
-  }, [formatType, groupCount, teams.length, validGroupCounts]);
+  }, [formatType, groupCount, selectedCount, validGroupCounts]);
 
-  // 3. 当晋级人数超过最小小组人数上限时，自动调降晋级名额数以防产生越界/无意义赛程
+  // 3. 当晋级人数超过最小小组人数上限时，自动调降晋级名额数
   useEffect(() => {
     const minGroupSize = formatType === 'single_group' 
-      ? teams.length 
-      : (formatType === 'multi_group' ? Math.floor(teams.length / groupCount) : 99);
+      ? selectedCount 
+      : (formatType === 'multi_group' ? Math.floor(selectedCount / groupCount) : 99);
     
-    // 每组晋级人数必须严格小于最小组球队数
     const maxPromo = minGroupSize - 1;
     if (promoCount > maxPromo && maxPromo >= 1) {
       setPromoCount(Math.max(1, Math.floor(maxPromo)));
     }
-  }, [formatType, groupCount, teams.length, promoCount]);
+  }, [formatType, groupCount, selectedCount, promoCount]);
 
-  const isOddTeams = teams.length % 2 !== 0;
+  const handleSelectAllTeams = () => {
+    setSelectedTeamIds(teams.map(team => team.id));
+  };
+  const handleDeselectAllTeams = () => {
+    setSelectedTeamIds([]);
+  };
+  const handleToggleTeamSelection = (teamId) => {
+    setSelectedTeamIds(prev => 
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
 
-  // 抽签与开启赛程
+  // 创建并开启新赛程的抽签逻辑
   const drawLots = () => {
     if (!isAdmin) {
       alert('权限不足，仅系统管理员可执行抽签！');
       return;
     }
 
-    // 🚨 核心逻辑修复：如果已经处于淘汰赛阶段（不管是原生淘汰赛还是循环赛演进出的淘汰赛），
-    // 再次点击“抽取下一轮”时，必须根据留在场上的 t.activeTeams 进行下一轮对局抽签！
-    if (t && t.stage !== 'group') {
-      if (!t.activeTeams || t.activeTeams.length === 0) {
-        alert('没有可参与抽签的队伍！');
-        return;
-      }
-      if (t.activeTeams.length === 1) {
-        alert(`比赛已结束，冠军是：${t.activeTeams[0].name}`);
-        return;
-      }
-      if (t.currentMatches && t.currentMatches.length > 0 && !t.currentMatches.every(m => m.completed)) {
-        alert('当前轮次还有未完成的比赛，无法重新抽签。');
-        return;
-      }
-
-      // 执行淘汰赛下一轮抽签，打乱顺序
-      const shuffled = [...t.activeTeams].sort(() => Math.random() - 0.5);
-      const matches = [];
-      let index = 0;
-      let matchIdCount = 1;
-
-      while (index < shuffled.length) {
-        if (index + 1 < shuffled.length) {
-          matches.push({
-            id: `r${t.round}_m${matchIdCount++}`,
-            team1: shuffled[index],
-            team2: shuffled[index + 1],
-            completed: false,
-            winner: null,
-            score1: 0,
-            score2: 0
-          });
-          index += 2;
-        } else {
-          // 奇数队伍下自动轮空晋级
-          matches.push({
-            id: `r${t.round}_m${matchIdCount++}`,
-            team1: shuffled[index],
-            team2: null,
-            completed: true,
-            winner: shuffled[index],
-            score1: 0,
-            score2: 0,
-            isBye: true
-          });
-          index++;
-        }
-      }
-
-      saveStore('tournament', {
-        ...t,
-        currentMatches: matches
-      });
+    if (!newTourName.trim()) {
+      alert('请输入新赛程的名称！');
       return;
     }
 
-    if (teams.length < 2) {
-      alert('至少需要 2 支队伍才能开启抽签对阵！');
+    const selectedTeams = teams.filter(t => selectedTeamIds.includes(t.id));
+    if (selectedTeams.length < 2) {
+      alert('至少需要勾选 2 支队伍才能开启抽签对阵！');
       return;
     }
 
     // 多小组循环赛防呆校验
     if (formatType === 'multi_group') {
       if (!canMultiGroup) {
-        alert('当前已报名球队数量过少，无法进行多小组循环赛！');
+        alert('当前勾选的队伍数量过少，无法进行多小组循环赛！');
         return;
       }
-      const validGroupCounts = getValidEvenGroupCounts(teams.length);
-      if (!validGroupCounts.includes(groupCount)) {
-        alert(`当前队伍数 (${teams.length} 支) 无法分为 ${groupCount} 个小组！`);
+      const validCounts = getValidEvenGroupCounts(selectedTeams.length);
+      if (!validCounts.includes(groupCount)) {
+        alert(`当前勾选的队伍数 (${selectedTeams.length} 支) 无法分为 ${groupCount} 个小组！`);
         return;
       }
 
-      const minGroupSize = Math.floor(teams.length / groupCount);
+      const minGroupSize = Math.floor(selectedTeams.length / groupCount);
       if (minGroupSize <= promoCount) {
         alert(`人数最少的小组球队数 (${minGroupSize} 支) 必须大于每组出线晋级名额 (${promoCount} 支)！`);
         return;
@@ -522,82 +498,64 @@ export default function DrawView({ onStartMatch }) {
     }
 
     // 单组循环赛防呆
-    if (formatType === 'single_group' && teams.length <= promoCount) {
-      alert(`球队总数 (${teams.length} 支) 必须大于出线名额 (${promoCount} 支)！`);
+    if (formatType === 'single_group' && selectedTeams.length <= promoCount) {
+      alert(`勾选的球队总数 (${selectedTeams.length} 支) 必须大于出线名额 (${promoCount} 支)！`);
       return;
     }
 
+    const newTourId = `tour_${Date.now()}`;
+    let matches = [];
+    let groups = null;
+
     if (formatType === 'knockout') {
       // 1. 经典单败淘汰赛抽签
-      const shuffled = [...teams].sort(() => Math.random() - 0.5);
-      const matches = [];
+      const shuffled = [...selectedTeams].sort(() => Math.random() - 0.5);
       let index = 0;
       let matchIdCount = 1;
 
       while (index < shuffled.length) {
         if (index + 1 < shuffled.length) {
           matches.push({
-            id: `r1_m${matchIdCount++}`,
+            id: `${newTourId}_r1_m${matchIdCount++}`,
             team1: shuffled[index],
             team2: shuffled[index + 1],
             completed: false,
             winner: null,
             score1: 0,
-            score2: 0
+            score2: 0,
+            tournamentId: newTourId,
+            tournamentName: newTourName.trim()
           });
           index += 2;
         } else {
           matches.push({
-            id: `r1_m${matchIdCount++}`,
+            id: `${newTourId}_r1_m${matchIdCount++}`,
             team1: shuffled[index],
             team2: null,
             completed: true,
             winner: shuffled[index],
             score1: 0,
             score2: 0,
-            isBye: true
+            isBye: true,
+            tournamentId: newTourId,
+            tournamentName: newTourName.trim()
           });
           index++;
         }
       }
-
-      saveStore('tournament', {
-        type: 'knockout',
-        round: 1,
-        activeTeams: [...teams],
-        currentMatches: matches,
-        history: []
-      });
     } else if (formatType === 'single_group') {
       // 2. 单组循环赛抽签
-      if (teams.length <= promoCount) {
-        alert(`已报名球队数量（${teams.length}支）不应少于出线晋级名额（${promoCount}人），请修改名额配置！`);
-        return;
-      }
-
-      const matches = generateRoundRobinMatches(teams);
-      saveStore('tournament', {
-        type: 'single_group',
-        stage: 'group',
-        promoCount,
-        activeTeams: [...teams],
-        currentMatches: matches,
-        history: []
-      });
+      const matchesRaw = generateRoundRobinMatches(selectedTeams);
+      matches = matchesRaw.map(m => ({
+        ...m,
+        id: `${newTourId}_${m.id}`,
+        tournamentId: newTourId,
+        tournamentName: newTourName.trim()
+      }));
     } else if (formatType === 'multi_group') {
       // 3. 多小组循环赛抽签
-      const minGroupSize = Math.floor(teams.length / groupCount);
-      if (minGroupSize < 2) {
-        alert(`队伍太少，无法分配到 ${groupCount} 个小组内，请选择更少的小组数！`);
-        return;
-      }
-      if (minGroupSize <= promoCount) {
-        alert(`每个小组内的球队数不多于每组出线名额（${promoCount}人），请修改出线名额！`);
-        return;
-      }
-
-      const shuffled = [...teams].sort(() => Math.random() - 0.5);
-      const groups = {};
+      const shuffled = [...selectedTeams].sort(() => Math.random() - 0.5);
+      groups = {};
       const groupNames = getGroupNames(groupCount);
 
       groupNames.forEach(name => {
@@ -609,23 +567,108 @@ export default function DrawView({ onStartMatch }) {
         groups[gName].push(team);
       });
 
-      const matches = [];
       groupNames.forEach(gName => {
         const gMatches = generateRoundRobinMatches(groups[gName], gName);
-        matches.push(...gMatches);
-      });
-
-      saveStore('tournament', {
-        type: 'multi_group',
-        stage: 'group',
-        groupCount,
-        promoCount,
-        groups,
-        activeTeams: [...teams],
-        currentMatches: matches,
-        history: []
+        const mappedMatches = gMatches.map(m => ({
+          ...m,
+          id: `${newTourId}_${m.id}`,
+          tournamentId: newTourId,
+          tournamentName: newTourName.trim()
+        }));
+        matches.push(...mappedMatches);
       });
     }
+
+    const newTournament = {
+      id: newTourId,
+      name: newTourName.trim(),
+      type: formatType,
+      stage: formatType === 'knockout' ? 'knockout' : 'group',
+      round: 1,
+      promoCount: formatType === 'knockout' ? 0 : promoCount,
+      groupCount: formatType === 'multi_group' ? groupCount : 0,
+      groups,
+      activeTeams: [...selectedTeams],
+      currentMatches: matches,
+      history: []
+    };
+
+    const updatedTournaments = [...tournaments, newTournament];
+    saveStore({ tournaments: updatedTournaments });
+    
+    // 重置面板并切换视图
+    setNewTourName('');
+    setSelectedTeamIds([]);
+    setActiveTourId(newTourId);
+    alert(`🎉 成功开启并生成新赛程：“${newTournament.name}”！`);
+  };
+
+  // 进行中赛程的淘汰赛下一轮抽签
+  const drawNextRound = () => {
+    if (!isAdmin) {
+      alert('权限不足，仅系统管理员可执行抽签！');
+      return;
+    }
+    if (!t || t.stage === 'group') return;
+
+    if (!t.activeTeams || t.activeTeams.length === 0) {
+      alert('没有可参与抽签的队伍！');
+      return;
+    }
+    if (t.activeTeams.length === 1) {
+      alert(`比赛已结束，冠军是：${t.activeTeams[0].name}`);
+      return;
+    }
+    if (t.currentMatches && t.currentMatches.length > 0 && !t.currentMatches.every(m => m.completed)) {
+      alert('当前轮次还有未完成的比赛，无法重新抽签。');
+      return;
+    }
+
+    const shuffled = [...t.activeTeams].sort(() => Math.random() - 0.5);
+    const matches = [];
+    let index = 0;
+    let matchIdCount = 1;
+    const nextRound = t.round + 1;
+
+    while (index < shuffled.length) {
+      if (index + 1 < shuffled.length) {
+        matches.push({
+          id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+          team1: shuffled[index],
+          team2: shuffled[index + 1],
+          completed: false,
+          winner: null,
+          score1: 0,
+          score2: 0,
+          tournamentId: t.id,
+          tournamentName: t.name
+        });
+        index += 2;
+      } else {
+        matches.push({
+          id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+          team1: shuffled[index],
+          team2: null,
+          completed: true,
+          winner: shuffled[index],
+          score1: 0,
+          score2: 0,
+          isBye: true,
+          tournamentId: t.id,
+          tournamentName: t.name
+        });
+        index++;
+      }
+    }
+
+    const updatedT = {
+      ...t,
+      round: nextRound,
+      currentMatches: matches
+    };
+
+    const updatedTournaments = tournaments.map(tour => tour.id === t.id ? updatedT : tour);
+    saveStore({ tournaments: updatedTournaments });
   };
 
   // 晋级至淘汰赛阶段
@@ -638,7 +681,8 @@ export default function DrawView({ onStartMatch }) {
 
     if (confirm('确认小组循环赛均已结束，现在根据积分榜名次生成交叉淘汰赛对阵吗？')) {
       const nextT = generatePlayoffMatches(t);
-      saveStore('tournament', nextT);
+      const updatedTournaments = tournaments.map(tour => tour.id === t.id ? nextT : tour);
+      saveStore({ tournaments: updatedTournaments });
       alert('已成功晋级到淘汰赛阶段！对阵表已实时更新。');
     }
   };
@@ -651,7 +695,7 @@ export default function DrawView({ onStartMatch }) {
     }
     if (!t) return;
 
-    if (confirm('确定要结束并归档当前的赛程吗？此操作不可撤销，结束之后可以开启一个新赛程。')) {
+    if (confirm(`确定要结束并归档当前的赛程“${t.name}”吗？此操作不可撤销，结束之后可以开启一个新赛程。`)) {
       const pastTournaments = store.pastTournaments || [];
       const currentT = { ...t };
       currentT.archivedAt = new Date().toLocaleString();
@@ -669,14 +713,18 @@ export default function DrawView({ onStartMatch }) {
       }
 
       const updatedPast = [...pastTournaments, currentT];
+      const updatedTournaments = tournaments.filter(tour => tour.id !== t.id);
 
       saveStore({
         pastTournaments: updatedPast,
-        tournament: null
+        tournaments: updatedTournaments
       });
 
-      localStorage.removeItem('hoops_manager_live_match');
-      localStorage.removeItem('hoops_manager_active_match_id');
+      const liveActiveMatchId = localStorage.getItem('hoops_manager_active_match_id');
+      if (liveActiveMatchId && liveActiveMatchId.startsWith(t.id)) {
+        localStorage.removeItem('hoops_manager_live_match');
+        localStorage.removeItem('hoops_manager_active_match_id');
+      }
 
       alert('当前赛程已结束并归档。您可以继续随机抽签开启新赛程！');
     }
@@ -691,11 +739,33 @@ export default function DrawView({ onStartMatch }) {
     onStartMatch(match);
   };
 
-  // 渲染赛制配置面板
+  // 渲染当前赛程切换选择器
+  const renderTournamentSelector = () => {
+    return (
+      <div className="tournament-selector-bar" style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', background: 'rgba(255, 255, 255, 0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+        <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}><i className="bx bx-select-multiple"></i> 选择当前活动赛程：</span>
+        <select 
+          value={activeTourId} 
+          onChange={(e) => setActiveTourId(e.target.value)}
+          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--panel-bg)', color: '#fff', fontSize: '0.9rem', cursor: 'pointer', outline: 'none' }}
+        >
+          {tournaments.map(tour => (
+            <option key={tour.id} value={tour.id}>
+              🏆 {tour.name} ({tour.stage === 'group' ? '小组赛' : `淘汰赛第 ${tour.round} 轮`})
+            </option>
+          ))}
+          <option value="create_new">➕ 开启新赛程...</option>
+        </select>
+      </div>
+    );
+  };
+
+  // 渲染赛制配置面板（开启新赛程）
   const renderConfigPanel = () => {
+    const selectedCount = selectedTeamIds.length;
     const groupSize = formatType === 'single_group' 
-      ? teams.length 
-      : (formatType === 'multi_group' ? teams.length / groupCount : 99);
+      ? selectedCount 
+      : (formatType === 'multi_group' ? Math.floor(selectedCount / groupCount) : 99);
 
     return (
       <div className="format-config-card">
@@ -704,7 +774,48 @@ export default function DrawView({ onStartMatch }) {
         
         <div className="config-form">
           <div className="config-item">
-            <label>1. 选择赛制类型</label>
+            <label>1. 输入新赛程名称</label>
+            <div className="input-group">
+              <input 
+                type="text" 
+                placeholder="例如：第一届巅峰杯、2026年夏季联赛" 
+                value={newTourName} 
+                onChange={(e) => setNewTourName(e.target.value)}
+                style={{ width: '100%', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--panel-bg)', color: '#fff' }}
+              />
+            </div>
+          </div>
+
+          <div className="config-item">
+            <label>2. 勾选参赛球队 (已选 {selectedCount} 支)</label>
+            <div className="team-select-wrapper" style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '0.75rem', background: 'rgba(0, 0, 0, 0.2)', marginBottom: '0.5rem' }}>
+              {teams.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.85rem' }}>暂无球队，请先前往“球队管理”页面登记球队！</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.5rem' }}>
+                  {teams.map(team => (
+                    <label key={team.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#fff', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedTeamIds.includes(team.id)} 
+                        onChange={() => handleToggleTeamSelection(team.id)} 
+                      />
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{team.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            {teams.length > 0 && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <button type="button" className="primary-btn" style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', width: 'auto' }} onClick={handleSelectAllTeams}>全选</button>
+                <button type="button" className="danger-btn" style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', width: 'auto' }} onClick={handleDeselectAllTeams}>清空</button>
+              </div>
+            )}
+          </div>
+
+          <div className="config-item">
+            <label>3. 选择赛制类型</label>
             <div className="format-options">
               <label className={`format-option-label ${formatType === 'knockout' ? 'active' : ''}`}>
                 <input type="radio" name="formatType" value="knockout" checked={formatType === 'knockout'} onChange={() => setFormatType('knockout')} />
@@ -722,13 +833,13 @@ export default function DrawView({ onStartMatch }) {
                 </div>
               </label>
 
-              <label className={`format-option-label ${formatType === 'multi_group' ? 'active' : ''} ${!canMultiGroup ? 'disabled' : ''}`} title={!canMultiGroup ? "球队数量过少，无法进行多小组循环赛" : ""}>
+              <label className={`format-option-label ${formatType === 'multi_group' ? 'active' : ''} ${!canMultiGroup ? 'disabled' : ''}`} title={!canMultiGroup ? "选择的球队数过少，无法进行多小组循环赛" : ""}>
                 <input type="radio" name="formatType" value="multi_group" checked={formatType === 'multi_group'} disabled={!canMultiGroup} onChange={() => setFormatType('multi_group')} />
                 <div className="option-info">
                   <span className="title">多小组循环赛 (Multi-Group Round Robin)</span>
                   <span className="desc">
                     {!canMultiGroup 
-                      ? `⚠️ 球队数 (${teams.length} 支) 过少，无法进行多小组循环赛（至少需要 4 支队伍）。` 
+                      ? `⚠️ 已选队伍 (${selectedCount} 支) 过少，无法进行多小组循环赛（至少需要 4 支队伍）。` 
                       : "球队分入多个小组进行组内单循环，各组优胜者出线交叉淘汰。"}
                   </span>
                 </div>
@@ -738,7 +849,7 @@ export default function DrawView({ onStartMatch }) {
 
           {formatType === 'multi_group' && (
             <div className="config-item sub-config">
-              <label>2. 设置小组数量</label>
+              <label>4. 设置小组数量</label>
               <div className="input-group">
                 <select value={groupCount} onChange={(e) => setGroupCount(Number(e.target.value))}>
                   {validGroupCounts.map(count => (
@@ -753,8 +864,8 @@ export default function DrawView({ onStartMatch }) {
 
           {(formatType === 'single_group' || formatType === 'multi_group') && (() => {
             const minGroupSize = formatType === 'single_group' 
-              ? teams.length 
-              : Math.floor(teams.length / groupCount);
+              ? selectedCount 
+              : Math.floor(selectedCount / groupCount);
             const maxPromo = Math.max(1, minGroupSize - 1);
             const promoOptions = [];
             for (let p = 1; p <= maxPromo; p++) {
@@ -762,7 +873,7 @@ export default function DrawView({ onStartMatch }) {
             }
             return (
               <div className="config-item sub-config">
-                <label>{formatType === 'single_group' ? '2. 设置出线进入淘汰赛的名额' : '3. 设置每个小组的出线名额'}</label>
+                <label>{formatType === 'single_group' ? '5. 设置出线进入淘汰赛的名额' : '5. 设置每个小组的出线名额'}</label>
                 <div className="input-group">
                   <select value={promoCount} onChange={(e) => setPromoCount(Number(e.target.value))}>
                     {promoOptions.map(p => (
@@ -848,17 +959,17 @@ export default function DrawView({ onStartMatch }) {
                   </td>
                   <td className="team-cell">{row.teamName}</td>
                   <td>{row.played}</td>
-                  <td><span className="stats-w-l">{row.won}W</span> - <span className="stats-w-l lost">{row.lost}L</span></td>
+                  <td>{row.won}W - {row.lost}L</td>
                   <td>{row.scoreFor} / {row.scoreAgainst}</td>
-                  <td className={row.scoreDiff > 0 ? 'diff-pos' : row.scoreDiff < 0 ? 'diff-neg' : ''}>
+                  <td className={row.scoreDiff > 0 ? 'win-diff' : row.scoreDiff < 0 ? 'lose-diff' : ''}>
                     {row.scoreDiff > 0 ? `+${row.scoreDiff}` : row.scoreDiff}
                   </td>
                   <td className="points-cell">{row.points}</td>
                   <td>
                     {isPromo ? (
-                      <span className="promo-badge"><i className="bx bx-check-double"></i> 晋级区</span>
+                      <span className="promo-status-badge"><i className="bx bx-check-circle"></i> 晋级</span>
                     ) : (
-                      <span className="elim-badge">未晋级</span>
+                      <span className="eliminated-status-badge">未出线</span>
                     )}
                   </td>
                 </tr>
@@ -870,32 +981,14 @@ export default function DrawView({ onStartMatch }) {
     );
   };
 
-  // 渲染主流程内容
   const renderContent = () => {
-    // 1. 如果没有开启任何活动赛程
-    if (!t) {
+    if (activeTourId === 'create_new' || !t) {
       return renderConfigPanel();
     }
 
-    // 2. 如果已决出冠军 (仅限最终淘汰赛阶段)
-    if (t.stage !== 'group' && t.activeTeams && t.activeTeams.length === 1) {
-      return (
-        <div className="empty-state" style={{ borderColor: 'var(--primary-color)' }}>
-          <i className="bx bxs-trophy" style={{ color: 'var(--primary-color)', fontSize: '4rem' }}></i>
-          <p style={{ fontSize: '1.5rem', color: '#fff', margin: '1rem 0', fontWeight: 800 }}>
-            🏆 恭喜夺冠：{t.activeTeams[0].name}
-          </p>
-          <p>
-            {isAdmin ? '请点击右上角按钮归档本届赛程，在历史记录中永久保存积分和对阵' : '本届赛事已圆满结束，请等待管理员归档数据。'}
-          </p>
-        </div>
-      );
-    }
+    const allMatchesCompleted = t.currentMatches && t.currentMatches.length > 0 && t.currentMatches.every(m => m.completed);
 
-    // 3. 循环赛阶段 (stage === 'group')
     if (t.stage === 'group') {
-      const allMatchesCompleted = t.currentMatches && t.currentMatches.length > 0 && t.currentMatches.every(m => m.completed);
-
       if (t.type === 'single_group') {
         const standings = calculateStandings(t.currentMatches, t.activeTeams);
         return (
@@ -904,20 +997,18 @@ export default function DrawView({ onStartMatch }) {
               <div className="promote-bar">
                 <div className="promote-info">
                   <i className="bx bx-info-circle"></i>
-                  <span>单组循环赛已全部完成！请确认下方积分榜排名，然后点击按钮生成淘汰赛阶段对阵。</span>
+                  <span>“{t.name}”循环赛积分已完成！请确认晋级名次后点击生成交叉淘汰赛。</span>
                 </div>
                 <button className="primary-btn promote-btn" onClick={promoteToPlayoffs}>
-                  <i className="bx bx-play-circle"></i> 晋级至淘汰赛阶段
+                  <i className="bx bx-play-circle"></i> 生成淘汰赛阶段对阵
                 </button>
               </div>
             )}
-
             <div className="group-layout">
               <div className="group-standings-section">
                 <h3 className="section-subtitle"><i className="bx bx-list-ol"></i> 循环赛积分榜</h3>
                 {renderStandingsTable(standings, t.promoCount)}
               </div>
-
               <div className="group-matches-section">
                 <h3 className="section-subtitle"><i className="bx bx-calendar"></i> 赛程与对阵表</h3>
                 <div className="matchups-grid">
@@ -936,7 +1027,7 @@ export default function DrawView({ onStartMatch }) {
               <div className="promote-bar">
                 <div className="promote-info">
                   <i className="bx bx-info-circle"></i>
-                  <span>小组循环赛已全部完成！请确认各小组积分名次，然后点击生成交叉淘汰赛对阵。</span>
+                  <span>“{t.name}”小组循环赛已全部完成！请确认各小组积分名次，然后点击生成交叉淘汰赛对阵。</span>
                 </div>
                 <button className="primary-btn promote-btn" onClick={promoteToPlayoffs}>
                   <i className="bx bx-play-circle"></i> 生成淘汰赛阶段对阵
@@ -1130,12 +1221,16 @@ export default function DrawView({ onStartMatch }) {
         <p>支持淘汰赛、单组循环赛、多小组循环赛的生成与对阵榜管理。</p>
       </header>
       <div className="tournament-container">
+        {renderTournamentSelector()}
+
         <div className="action-bar">
           <h3>
             {t ? (
-              t.stage === 'group' 
-                ? (t.type === 'single_group' ? '循环赛阶段' : '小组循环赛阶段')
-                : (t.activeTeams && t.activeTeams.length === 1 ? `🏆 冠军诞生：${t.activeTeams[0].name}` : `淘汰赛阶段 - 第 ${t.round} 轮`)
+              `${t.name} - ${
+                t.stage === 'group' 
+                  ? (t.type === 'single_group' ? '循环赛阶段' : '小组循环赛阶段')
+                  : (t.activeTeams && t.activeTeams.length === 1 ? `🏆 冠军诞生：${t.activeTeams[0].name}` : `淘汰赛阶段 - 第 ${t.round} 轮`)
+              }`
             ) : (
               '等待开启赛程'
             )}
@@ -1145,7 +1240,7 @@ export default function DrawView({ onStartMatch }) {
               <button
                 id="draw-lots-btn"
                 className="primary-btn"
-                onClick={drawLots}
+                onClick={drawNextRound}
                 disabled={t && t.currentMatches && t.currentMatches.length > 0 && !allCompleted}
               >
                 <i className="bx bx-shuffle"></i> {drawBtnText}
