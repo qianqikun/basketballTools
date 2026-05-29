@@ -97,8 +97,8 @@ const calculateStandings = (matches, groupTeams) => {
         t2.lost += 1;
         t2.points += 1; // 负积 1 分
 
-        t1.matchesList.push({ opponentId: m.team2.id, isWin: true });
-        t2.matchesList.push({ opponentId: m.team1.id, isWin: false });
+        t1.matchesList.push({ opponentId: m.team2.id, isWin: true, scoreFor: m.score1, scoreAgainst: m.score2 });
+        t2.matchesList.push({ opponentId: m.team1.id, isWin: false, scoreFor: m.score2, scoreAgainst: m.score1 });
       } else {
         t2.won += 1;
         t2.points += 2;
@@ -106,8 +106,8 @@ const calculateStandings = (matches, groupTeams) => {
         t1.lost += 1;
         t1.points += 1;
 
-        t2.matchesList.push({ opponentId: m.team1.id, isWin: true });
-        t1.matchesList.push({ opponentId: m.team2.id, isWin: false });
+        t2.matchesList.push({ opponentId: m.team1.id, isWin: true, scoreFor: m.score2, scoreAgainst: m.score1 });
+        t1.matchesList.push({ opponentId: m.team2.id, isWin: false, scoreFor: m.score1, scoreAgainst: m.score2 });
       }
     }
   });
@@ -118,26 +118,100 @@ const calculateStandings = (matches, groupTeams) => {
     return s;
   });
 
-  // 严谨篮球排名规则排序：1. 积分 -> 2. 净胜分 -> 3. 总得分 -> 4. 胜负关系
-  list.sort((a, b) => {
-    if (b.points !== a.points) {
-      return b.points - a.points;
+  // 1. 先按积分归类分组
+  const groupsByPoints = {};
+  list.forEach(item => {
+    if (!groupsByPoints[item.points]) {
+      groupsByPoints[item.points] = [];
     }
-    if (b.scoreDiff !== a.scoreDiff) {
-      return b.scoreDiff - a.scoreDiff;
-    }
-    if (b.scoreFor !== a.scoreFor) {
-      return b.scoreFor - a.scoreFor;
-    }
-    // 检查胜负关系
-    const directMatch = a.matchesList.find(m => m.opponentId === b.teamId);
-    if (directMatch) {
-      return directMatch.isWin ? -1 : 1;
-    }
-    return 0;
+    groupsByPoints[item.points].push(item);
   });
 
-  return list;
+  // 2. 对每个积分相同的组进行组内专业排序
+  const sortedList = [];
+  const sortedPoints = Object.keys(groupsByPoints).map(Number).sort((a, b) => b - a);
+
+  sortedPoints.forEach(pts => {
+    const subList = groupsByPoints[pts];
+    if (subList.length === 1) {
+      sortedList.push(subList[0]);
+    } else if (subList.length === 2) {
+      // 2人积分相同：首要看两队直面胜负关系
+      const [a, b] = subList;
+      const matchA = a.matchesList.find(m => m.opponentId === b.teamId);
+      let order = 0;
+      if (matchA) {
+        order = matchA.isWin ? -1 : 1;
+      }
+      
+      if (order !== 0) {
+        if (order === -1) {
+          sortedList.push(a, b);
+        } else {
+          sortedList.push(b, a);
+        }
+      } else {
+        // 如果没交手，看全部净胜分，再看总得分
+        if (b.scoreDiff !== a.scoreDiff) {
+          b.scoreDiff - a.scoreDiff > 0 ? sortedList.push(b, a) : sortedList.push(a, b);
+        } else if (b.scoreFor !== a.scoreFor) {
+          b.scoreFor - a.scoreFor > 0 ? sortedList.push(b, a) : sortedList.push(a, b);
+        } else {
+          sortedList.push(a, b);
+        }
+      }
+    } else {
+      // 3人及以上积分相同：根据这几队“彼此之间交手”的净胜分、总得分排序
+      const subTeamIds = subList.map(item => item.teamId);
+      
+      subList.forEach(item => {
+        let subScoreFor = 0;
+        let subScoreAgainst = 0;
+        item.matchesList.forEach(m => {
+          if (subTeamIds.includes(m.opponentId)) {
+            subScoreFor += m.scoreFor || 0;
+            subScoreAgainst += m.scoreAgainst || 0;
+          }
+        });
+        item._subScoreDiff = subScoreFor - subScoreAgainst;
+        item._subScoreFor = subScoreFor;
+      });
+
+      subList.sort((a, b) => {
+        if (b._subScoreDiff !== a._subScoreDiff) {
+          return b._subScoreDiff - a._subScoreDiff;
+        }
+        if (b._subScoreFor !== a._subScoreFor) {
+          return b._subScoreFor - a._subScoreFor;
+        }
+        if (b.scoreDiff !== a.scoreDiff) {
+          return b.scoreDiff - a.scoreDiff;
+        }
+        if (b.scoreFor !== a.scoreFor) {
+          return b.scoreFor - a.scoreFor;
+        }
+        return 0;
+      });
+
+      sortedList.push(...subList);
+    }
+  });
+
+  return sortedList;
+};
+
+// 提取对阵列表中实际参与的所有队伍
+const extractTeamsFromMatches = (matches) => {
+  const teamsMap = {};
+  matches.forEach(m => {
+    if (m.team1 && m.team1.id && !m.team1.isBye) {
+      teamsMap[m.team1.id] = m.team1;
+    }
+    if (m.team2 && m.team2.id && !m.team2.isBye) {
+      teamsMap[m.team2.id] = m.team2;
+    }
+  });
+  return Object.values(teamsMap);
 };
 
 // 动态字母组名生成 (例如 count=3 返回 ['A', 'B', 'C'])
