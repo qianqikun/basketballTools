@@ -56,13 +56,22 @@ export default function App() {
   // 1. 根据缓存恢复上次比赛状态
   useEffect(() => {
     const activeMatchId = localStorage.getItem('hoops_manager_active_match_id');
-    if (activeMatchId && store.tournament && store.tournament.currentMatches) {
-      const match = store.tournament.currentMatches.find(m => m.id === activeMatchId);
-      if (match && !match.completed) {
-        setActiveMatch(match);
+    if (activeMatchId && store.tournaments) {
+      let foundMatch = null;
+      for (const tour of store.tournaments) {
+        if (tour.currentMatches) {
+          const match = tour.currentMatches.find(m => m.id === activeMatchId);
+          if (match) {
+            foundMatch = match;
+            break;
+          }
+        }
+      }
+      if (foundMatch && !foundMatch.completed) {
+        setActiveMatch(foundMatch);
       }
     }
-  }, [store.tournament]);
+  }, [store.tournaments]);
 
   // 2. 智能重定向和路径记忆
   useEffect(() => {

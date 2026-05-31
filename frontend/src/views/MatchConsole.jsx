@@ -3,6 +3,15 @@ import { useApp } from '../context/AppContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useTimer } from '../hooks/useTimer';
 import './MatchConsole.css';
+// 简单的哈希算法，将长比赛ID转换为简短唯一的8位字符ID，缩短直播推拉流地址
+const getShortId = (id) => {
+  if (!id) return '';
+  let hash = 5381;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 33) ^ id.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+};
 
 export default function MatchConsole({ match, onBack }) {
   const { store, saveStore, currentUser } = useApp();
@@ -52,6 +61,10 @@ export default function MatchConsole({ match, onBack }) {
   const saveAndSync = (updatedFields = {}) => {
     if (!match) return;
 
+    const hasVideoVal = updatedFields.liveVideoEnable !== undefined ? updatedFields.liveVideoEnable : liveVideoEnable;
+    const shortId = getShortId(match.id);
+    const videoUrlVal = hasVideoVal ? `webrtc://${window.location.hostname}/live/show_${shortId}` : '';
+
     const data = {
       home: {
         name: match.team1.name,
@@ -68,8 +81,8 @@ export default function MatchConsole({ match, onBack }) {
       timeRemaining: updatedFields.timeRemaining !== undefined ? updatedFields.timeRemaining : timeRemaining,
       currentPeriod: updatedFields.period !== undefined ? updatedFields.period : period,
       isRunning: updatedFields.isRunning !== undefined ? updatedFields.isRunning : isRunning,
-      hasVideo: updatedFields.liveVideoEnable !== undefined ? updatedFields.liveVideoEnable : liveVideoEnable,
-      videoStreamUrl: updatedFields.liveVideoUrl !== undefined ? updatedFields.liveVideoUrl : liveVideoUrl,
+      hasVideo: hasVideoVal,
+      videoStreamUrl: videoUrlVal,
     };
 
     // 缓存至 localStorage
@@ -104,10 +117,8 @@ export default function MatchConsole({ match, onBack }) {
     if (!match) return;
 
     const hasVideoVal = currentFields.liveVideoEnable !== undefined ? currentFields.liveVideoEnable : liveVideoEnable;
-    let videoUrlVal = currentFields.liveVideoUrl !== undefined ? currentFields.liveVideoUrl : liveVideoUrl;
-    if (hasVideoVal && !videoUrlVal) {
-      videoUrlVal = `webrtc://${window.location.hostname}/live/show_${match.id}`;
-    }
+    const shortId = getShortId(match.id);
+    const videoUrlVal = hasVideoVal ? `webrtc://${window.location.hostname}/live/show_${shortId}` : '';
 
     const referee = currentUser ? {
       username: currentUser.username,
@@ -362,21 +373,18 @@ export default function MatchConsole({ match, onBack }) {
     const enabled = e.target.checked;
     setLiveVideoEnable(enabled);
     localStorage.setItem('hoops_manager_global_live_enabled', enabled ? 'true' : 'false');
-    saveAndSync({ liveVideoEnable: enabled });
-  };
-
-  // 自定义视频拉流地址输入
-  const handleLiveUrlInput = (e) => {
-    const val = e.target.value.trim();
-    setLiveVideoUrl(val);
-    localStorage.setItem('hoops_manager_global_live_url', val);
-    saveAndSync({ liveVideoUrl: val });
+    const shortId = getShortId(match.id);
+    const autoUrl = enabled ? `webrtc://${window.location.hostname}/live/show_${shortId}` : '';
+    setLiveVideoUrl(autoUrl);
+    localStorage.setItem('hoops_manager_global_live_url', autoUrl);
+    saveAndSync({ liveVideoEnable: enabled, liveVideoUrl: autoUrl });
   };
 
   // 复制推流地址
   const copyPushUrl = () => {
     const hostname = window.location.hostname;
-    const pushUrl = `rtmp://${hostname}:1935/live/show_${match.id}`;
+    const shortId = getShortId(match.id);
+    const pushUrl = `rtmp://${hostname}:1935/live/show_${shortId}`;
     
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(pushUrl).then(() => {
@@ -500,9 +508,9 @@ export default function MatchConsole({ match, onBack }) {
 
   // 生成推流和一键扫码地址
   const hostname = window.location.hostname;
-  const pushUrl = `rtmp://${hostname}:1935/live/show_${match.id}`;
-  const larixUrl = pushUrl.replace('rtmp://', 'larix://');
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(larixUrl)}`;
+  const shortId = getShortId(match.id);
+  const pushUrl = `rtmp://${hostname}:1935/live/show_${shortId}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(pushUrl)}`;
 
   const refereeText = currentUser ? ` (执裁裁判: ${currentUser.nickname})` : '';
   const tournamentNameText = match.tournamentName ? ` [${match.tournamentName}]` : '';
@@ -547,11 +555,6 @@ export default function MatchConsole({ match, onBack }) {
                 <span className="switch-slider"></span>
                 开启视频直播
               </label>
-              {liveVideoEnable && (
-                <div className="input-group" id="live-url-input-group" style={{ marginLeft: '2rem', flex: 1 }}>
-                  <input type="text" id="live-video-url" placeholder="自定义 WebRTC 拉流地址 (如 webrtc://[Host]/live/show，留空则自动生成)" value={liveVideoUrl} onChange={handleLiveUrlInput} />
-                </div>
-              )}
             </div>
 
             {liveVideoEnable && (
@@ -566,14 +569,14 @@ export default function MatchConsole({ match, onBack }) {
                   </div>
                 </div>
                 <div className="guide-item qr-guide-item">
-                  <span className="guide-label">iPhone 扫码快捷推流 (用自带相机扫描):</span>
+                  <span className="guide-label">RTMP 扫码推流二维码:</span>
                   <div className="qr-code-wrapper">
-                    <img src={qrCodeUrl} alt="Larix推流二维码" style={{ width: '120px', height: '120px', border: '4px solid #fff', borderRadius: '4px' }} />
+                    <img src={qrCodeUrl} alt="RTMP推流二维码" style={{ width: '120px', height: '120px', border: '4px solid #fff', borderRadius: '4px' }} />
                   </div>
                 </div>
                 <div className="notice-box">
                   <i className="bx bx-info-circle"></i>
-                  <span>请使用 Larix Broadcaster 等推流软件。若使用 iPhone，直接用自带相机扫描上方二维码，在弹出的提示中点击“在 Larix 中打开”即可一键导入推流配置并开始推流！</span>
+                  <span>请使用支持 RTMP 协议扫码的推流软件（如 Larix Broadcaster 等）或摄像机设备，直接扫描上方二维码即可一键导入 RTMP 推流地址并开始推流！</span>
                 </div>
               </div>
             )}
