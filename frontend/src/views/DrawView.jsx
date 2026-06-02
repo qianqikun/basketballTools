@@ -1246,23 +1246,27 @@ export default function DrawView({ onStartMatch }) {
           </div>
         )}
 
-        <h3 className="section-subtitle" style={{ marginBottom: '1.5rem' }}>
-          <i className="bx bx-git-commit"></i> 淘汰赛对阵图
-        </h3>
-        <div className="matchups-grid" id="matchups-container">
-          {t.currentMatches.map((m) => {
-            if (m.isBye) {
-              return (
-                <div key={m.id} className="matchup-card" style={{ opacity: 0.7 }}>
-                  <div className="matchup-team winner">
-                    <span>{m.team1.name} (轮空晋级)</span>
-                  </div>
-                </div>
-              );
-            }
-            return renderMatchCard(m);
-          })}
-        </div>
+        {!(t.activeTeams && t.activeTeams.length === 1) && (
+          <>
+            <h3 className="section-subtitle" style={{ marginBottom: '1.5rem' }}>
+              <i className="bx bx-git-commit"></i> 淘汰赛对阵图
+            </h3>
+            <div className="matchups-grid" id="matchups-container">
+              {t.currentMatches.map((m) => {
+                if (m.isBye) {
+                  return (
+                    <div key={m.id} className="matchup-card" style={{ opacity: 0.7 }}>
+                      <div className="matchup-team winner">
+                        <span>{m.team1.name} (轮空晋级)</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return renderMatchCard(m);
+              })}
+            </div>
+          </>
+        )}
       </div>
     );
   };

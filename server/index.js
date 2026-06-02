@@ -343,8 +343,17 @@ function validateStoreChange(oldStore, newStore, role) {
   // 2. 检查 pastTournaments (归档历史及重置)
   const oldPast = oldStore.pastTournaments || [];
   const newPast = newStore.pastTournaments || [];
-  if (JSON.stringify(oldPast) !== JSON.stringify(newPast)) {
-    return { valid: false, error: '权限不足，仅系统管理员可删除或修改历史归档记录' };
+  
+  // 💡 优化放行规则：非管理员前端可能未加载历史冷数据，因此 newPast 为空或少数据是合法的。
+  // 我们只拦截：newPast 中包含了 oldPast 中不存在的新归档赛程，或者篡改了 oldPast 中已有的归档赛程。
+  for (const newP of newPast) {
+    const oldP = oldPast.find(p => p.id === newP.id);
+    if (!oldP) {
+      return { valid: false, error: '权限不足，仅系统管理员可删除或修改历史归档记录' };
+    }
+    if (JSON.stringify(oldP) !== JSON.stringify(newP)) {
+      return { valid: false, error: '权限不足，仅系统管理员可删除或修改历史归档记录' };
+    }
   }
 
   // 3. 检查 tournaments (当前赛程数组)
@@ -391,8 +400,50 @@ function validateStoreChange(oldStore, newStore, role) {
       // 淘汰赛完赛自动推进机制放行：如果旧比赛列表中的所有比赛均已完赛，且新比赛列表置空，这是合法的阶段推进
       const oldAllCompleted = oldMatches.length > 0 && oldMatches.every(m => m.completed);
       const newMatchesCleared = newMatches.length === 0;
-      const isNormalProgression = oldT.stage !== 'group' && oldAllCompleted && newMatchesCleared && newT.round === oldT.round + 1;
-      
+      let isNormalProgression = oldT.stage !== 'group' && oldAllCompleted && newMatchesCleared && newT.round === oldT.round + 1;
+
+      // 支持普通裁判录入最后一场比赛完赛导致自动推进：如果旧比赛未全完赛，但包含未完赛比赛在本次请求中被更新为完赛并自动归档到历史记录中
+      if (!isNormalProgression && oldT.stage !== 'group' && newMatchesCleared && newT.round === oldT.round + 1) {
+        const newHistory = newT.history || [];
+        const lastHistoryItem = newHistory[newHistory.length - 1];
+        if (lastHistoryItem && lastHistoryItem.round === oldT.round) {
+          const historyMatches = lastHistoryItem.matches || [];
+          if (historyMatches.length === oldMatches.length && historyMatches.every(m => m.completed)) {
+            let matchValidationPassed = true;
+            for (let j = 0; j < oldMatches.length; j++) {
+              const oldM = oldMatches[j];
+              const newM = historyMatches.find(m => m.id === oldM.id);
+              if (!newM) {
+                matchValidationPassed = false;
+                break;
+              }
+              // 队伍ID一致性校验，防篡改对阵结构
+              if ((oldM.team1 && newM.team1 && oldM.team1.id !== newM.team1.id) ||
+                  (oldM.team2 && newM.team2 && oldM.team2.id !== newM.team2.id)) {
+                matchValidationPassed = false;
+                break;
+              }
+              // 安全性校验：如果旧比赛已完赛，其历史归档里的分值和完赛状态等必须与旧数据一致，防止越权改写已完赛历史数据
+              if (oldM.completed) {
+                if (oldM.score1 !== newM.score1 || oldM.score2 !== newM.score2 || !newM.completed) {
+                  matchValidationPassed = false;
+                  break;
+                }
+              } else {
+                // 如果旧比赛未完赛，其新比赛必须是已完赛状态，防止普通裁判在推进时混入未完赛的比赛
+                if (!newM.completed) {
+                  matchValidationPassed = false;
+                  break;
+                }
+              }
+            }
+            if (matchValidationPassed) {
+              isNormalProgression = true;
+            }
+          }
+        }
+      }
+
       if (!isNormalProgression) {
         return { valid: false, error: '权限不足，仅系统管理员可手动修改或重置赛程轮次' };
       }

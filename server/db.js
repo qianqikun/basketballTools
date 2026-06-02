@@ -258,21 +258,32 @@ const saveDataInternal = async (hotData) => {
 const saveData = async (dataObj) => {
   await initPromise;
 
-  // 如果明确传入了 pastTournaments，说明可能发起了赛程归档或清理历史归档
+  // 💡 智能合并历史归档冷数据，防止前端因未加载冷数据而发空数组，导致历史记录被覆盖丢失的问题。
   if (dataObj.pastTournaments && Array.isArray(dataObj.pastTournaments)) {
-    const newPastStr = JSON.stringify(dataObj.pastTournaments);
-    const oldPastStr = cachedPast ? JSON.stringify(cachedPast) : '[]';
+    const currentPast = await getPastTournaments();
+    
+    // 过滤出当前数据库中不存在的新赛程记录（根据 ID 判定）
+    const newItems = dataObj.pastTournaments.filter(
+      newTour => !currentPast.some(oldTour => oldTour.id === newTour.id)
+    );
 
-    // 仅在有实质变化时写入，减少不必要的冷数据磁盘写 IO
-    if (newPastStr !== oldPastStr) {
-      console.log(`💾 [DB] 历史归档赛程发生变动，写入 past_tournaments 表...`);
-      cachedPast = JSON.parse(newPastStr);
+    if (newItems.length > 0) {
+      const mergedPast = [...currentPast, ...newItems];
+      const mergedPastStr = JSON.stringify(mergedPast);
+
+      console.log(`💾 [DB] 检测到新归档赛程，执行追加写入 past_tournaments 表 (新增数: ${newItems.length})...`);
+      cachedPast = mergedPast;
       await new Promise((resolve, reject) => {
-        db.run(`UPDATE past_tournaments SET json_data = ? WHERE id = 1`, [newPastStr], function(err) {
+        db.run(`UPDATE past_tournaments SET json_data = ? WHERE id = 1`, [mergedPastStr], function(err) {
           if (err) return reject(err);
           resolve();
         });
       });
+    } else {
+      // 若没有新 ID 且 cachedPast 未被赋值过，初始化 cachedPast 缓存以备后用
+      if (!cachedPast) {
+        cachedPast = currentPast;
+      }
     }
   }
 
