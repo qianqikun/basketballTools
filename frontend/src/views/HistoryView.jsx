@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import './HistoryView.css';
 
@@ -204,9 +204,37 @@ const renderHistoryStandingsTable = (standings, pCount) => {
 };
 
 export default function HistoryView() {
-  const { store } = useApp();
+  const { store, setStore, fetchApi } = useApp();
+  const [loading, setLoading] = useState(false);
   const tournaments = store.tournaments || [];
   const pastT = store.pastTournaments || [];
+
+  useEffect(() => {
+    let active = true;
+    const loadPastTournaments = async () => {
+      setLoading(true);
+      try {
+        const res = await fetchApi('/api/past-tournaments');
+        const json = await res.json();
+        if (json.success && active) {
+          setStore(prev => ({
+            ...prev,
+            pastTournaments: json.data || []
+          }));
+        }
+      } catch (err) {
+        console.error('加载历史归档赛程失败:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadPastTournaments();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // 筛选出有历史战绩的当前进行中的赛程
   const activeTours = tournaments.filter(t => t.history && t.history.length > 0);
@@ -307,6 +335,23 @@ export default function HistoryView() {
       </>
     );
   };
+
+  if (loading && pastT.length === 0) {
+    return (
+      <section id="history" className="view-section active" style={{ display: 'block' }}>
+        <header className="section-header">
+          <h1>赛程记录</h1>
+          <p>历史比分与晋级结果回顾。</p>
+        </header>
+        <div className="history-container">
+          <div className="empty-state">
+            <i className="bx bx-loader-alt bx-spin" style={{ fontSize: '2.5rem', color: 'var(--primary-color)' }}></i>
+            <p>正在读取历史记录...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (isEmpty) {
     return (

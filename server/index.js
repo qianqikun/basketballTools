@@ -7,7 +7,7 @@ const WebSocket = require('ws');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // 配置中间件
 app.use(cors()); // 允许跨域
@@ -302,13 +302,24 @@ app.post('/api/users/delete', requireAdmin, async (req, res) => {
   }
 });
 
-// 获取最新数据
+// 获取最新数据 (不含历史归档以缩减响应体体积，提高核心数据传输性能)
 app.get('/api/store', requireAuth, async (req, res) => {
   try {
-    const data = await db.getData();
+    const data = await db.getData(false);
     res.json({ success: true, data });
   } catch (err) {
     console.error('Failed to get data:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 获取所有历史归档赛程 (冷数据按需加载接口)
+app.get('/api/past-tournaments', requireAuth, async (req, res) => {
+  try {
+    const data = await db.getPastTournaments();
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Failed to get past tournaments:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -408,8 +419,8 @@ app.post('/api/store', requireAuth, async (req, res) => {
   try {
     const dataObj = req.body;
     
-    // 获取当前在数据库里的旧数据
-    const oldData = await db.getData();
+    // 获取当前在数据库里的旧数据 (需要带上 pastTournaments 历史记录进行权限校验比对，防止普通记分员更新比分时因为缺少历史数据对比被拦截)
+    const oldData = await db.getData(true);
     
     // 进行敏感操作安全性差分校验
     const checkResult = validateStoreChange(oldData, dataObj, req.session.role);

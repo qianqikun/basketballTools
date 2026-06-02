@@ -1,6 +1,6 @@
 const http = require('http');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const HOST = 'localhost';
 
 // 简易 HTTP 请求封装，带 Bearer token 保持会话
@@ -156,6 +156,8 @@ function generatePlayoffMatches(tournament) {
   );
 
   return {
+    id: tournament.id,
+    name: tournament.name,
     type: tournament.type,
     stage: 'knockout',
     round: 1,
@@ -399,6 +401,11 @@ async function runTest() {
     // 10. 验证归档内容是否能正常查询并展示小组赛和淘汰赛数据
     const checkStoreGet = await request('/api/store');
     const finalStore = checkStoreGet.data.data || {};
+    
+    // 通过新增的历史归档按需加载接口拉取数据进行校验
+    const checkPastGet = await request('/api/past-tournaments');
+    finalStore.pastTournaments = checkPastGet.data.data || [];
+    
     const lastPast = finalStore.pastTournaments[finalStore.pastTournaments.length - 1];
 
     if (!lastPast) {

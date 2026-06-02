@@ -366,6 +366,8 @@ const generatePlayoffMatches = (tournament) => {
   }
 
   return {
+    id: tournament.id,
+    name: tournament.name,
     type: tournament.type,
     stage: 'knockout',
     round: 1,
@@ -603,16 +605,16 @@ export default function DrawView({ onStartMatch }) {
     alert(`🎉 成功开启并生成新赛程：“${newTournament.name}”！`);
   };
 
-  // 进行中赛程的淘汰赛下一轮抽签
+  // 进行中赛程的淘汰赛生成下一轮对局 (树状图固定晋级算法)
   const drawNextRound = () => {
     if (!isAdmin) {
-      alert('权限不足，仅系统管理员可执行抽签！');
+      alert('权限不足，仅系统管理员可执行操作！');
       return;
     }
     if (!t || t.stage === 'group') return;
 
     if (!t.activeTeams || t.activeTeams.length === 0) {
-      alert('没有可参与抽签的队伍！');
+      alert('没有可参与晋级的队伍！');
       return;
     }
     if (t.activeTeams.length === 1) {
@@ -620,44 +622,95 @@ export default function DrawView({ onStartMatch }) {
       return;
     }
     if (t.currentMatches && t.currentMatches.length > 0 && !t.currentMatches.every(m => m.completed)) {
-      alert('当前轮次还有未完成的比赛，无法重新抽签。');
+      alert('当前轮次还有未完成的比赛，无法生成下一轮对阵。');
       return;
     }
 
-    const shuffled = [...t.activeTeams].sort(() => Math.random() - 0.5);
     const matches = [];
-    let index = 0;
-    let matchIdCount = 1;
     const nextRound = t.round + 1;
+    let matchIdCount = 1;
 
-    while (index < shuffled.length) {
-      if (index + 1 < shuffled.length) {
-        matches.push({
-          id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
-          team1: shuffled[index],
-          team2: shuffled[index + 1],
-          completed: false,
-          winner: null,
-          score1: 0,
-          score2: 0,
-          tournamentId: t.id,
-          tournamentName: t.name
-        });
+    // 查找刚刚结束的一轮的历史对局数据 (t.round)
+    const lastRoundHistory = t.history ? t.history.find(h => h.round === t.round) : null;
+    const prevMatches = lastRoundHistory ? lastRoundHistory.matches : [];
+
+    if (prevMatches && prevMatches.length > 0) {
+      // 树状图固定晋级匹配：按照上一轮的对阵顺序，相邻两场的赢家进行对决 (折叠交叉)
+      console.log(`🏆 [Bracket System] 正在根据上一轮（第 ${t.round} 轮）对局顺序生成第 ${nextRound} 轮对阵树...`);
+      let index = 0;
+      while (index < prevMatches.length) {
+        const m1 = prevMatches[index];
+        const m2 = prevMatches[index + 1]; // 若 index + 1 超出长度，则 m2 为 undefined
+
+        // 提取第一场比赛的获胜方 (带容错兜底)
+        const team1 = m1 ? (m1.winner || (m1.score1 > m1.score2 ? m1.team1 : m1.team2)) : null;
+        // 提取第二场比赛的获胜方
+        const team2 = m2 ? (m2.winner || (m2.score1 > m2.score2 ? m2.team1 : m2.team2)) : null;
+
+        if (team1 && team2) {
+          matches.push({
+            id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+            team1: team1,
+            team2: team2,
+            completed: false,
+            winner: null,
+            score1: 0,
+            score2: 0,
+            tournamentId: t.id,
+            tournamentName: t.name
+          });
+        } else if (team1) {
+          // 如果上一轮是对局单数，最后一个获胜队伍在下一轮自动轮空晋级
+          matches.push({
+            id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+            team1: team1,
+            team2: null,
+            completed: true,
+            winner: team1,
+            score1: 0,
+            score2: 0,
+            isBye: true,
+            tournamentId: t.id,
+            tournamentName: t.name
+          });
+        }
+
         index += 2;
-      } else {
-        matches.push({
-          id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
-          team1: shuffled[index],
-          team2: null,
-          completed: true,
-          winner: shuffled[index],
-          score1: 0,
-          score2: 0,
-          isBye: true,
-          tournamentId: t.id,
-          tournamentName: t.name
-        });
-        index++;
+      }
+    } else {
+      // 降级兜底方案：使用原有随机打乱洗牌配对 (例如旧版本历史数据为空或损坏时)
+      console.warn('⚠️ [Bracket System] 未找到上一轮对局历史记录，已自动降级为随机洗牌分配对阵。');
+      const shuffled = [...t.activeTeams].sort(() => Math.random() - 0.5);
+      let index = 0;
+      while (index < shuffled.length) {
+        if (index + 1 < shuffled.length) {
+          matches.push({
+            id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+            team1: shuffled[index],
+            team2: shuffled[index + 1],
+            completed: false,
+            winner: null,
+            score1: 0,
+            score2: 0,
+            tournamentId: t.id,
+            tournamentName: t.name
+          });
+          index += 2;
+        } else {
+          matches.push({
+            id: `${t.id}_r${nextRound}_m${matchIdCount++}`,
+            team1: shuffled[index],
+            team2: null,
+            completed: true,
+            winner: shuffled[index],
+            score1: 0,
+            score2: 0,
+            isBye: true,
+            tournamentId: t.id,
+            tournamentName: t.name
+          });
+          index++;
+        }
       }
     }
 
@@ -1206,7 +1259,7 @@ export default function DrawView({ onStartMatch }) {
   const isGroupStage = t && t.stage === 'group';
   
   const drawBtnText = allCompleted 
-    ? (isGroupStage ? '等待晋级' : '抽取下一轮') 
+    ? (isGroupStage ? '等待晋级' : '生成下一轮对阵') 
     : '随机抽签';
 
   const showEndBtn = t && (
