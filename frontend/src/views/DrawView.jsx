@@ -392,9 +392,20 @@ export default function DrawView({ onStartMatch }) {
 
   const teams = store.teams || [];
   const tournaments = store.tournaments || [];
-  const [activeTourId, setActiveTourId] = useState('');
+  const [activeTourId, setActiveTourId] = useState(() => {
+    return localStorage.getItem('hoops_manager_active_tournament_id') || '';
+  });
   const t = tournaments.find(tour => tour.id === activeTourId) || null;
   const isAdmin = currentUser && currentUser.role === 'admin';
+
+  // 同步 activeTourId 至 localStorage，防止页面重新挂载后状态丢失
+  useEffect(() => {
+    if (activeTourId) {
+      localStorage.setItem('hoops_manager_active_tournament_id', activeTourId);
+    } else {
+      localStorage.removeItem('hoops_manager_active_tournament_id');
+    }
+  }, [activeTourId]);
 
   // 赛制配置面板状态
   const [formatType, setFormatType] = useState('knockout'); // 'knockout' | 'single_group' | 'multi_group'
@@ -630,8 +641,8 @@ export default function DrawView({ onStartMatch }) {
     const nextRound = t.round + 1;
     let matchIdCount = 1;
 
-    // 查找刚刚结束的一轮的历史对局数据 (t.round)
-    const lastRoundHistory = t.history ? t.history.find(h => h.round === t.round) : null;
+    // 查找刚刚结束的一轮的历史对局数据 (直接取历史记录中的最后一项，最健壮地兼容轮次跳级和各种环境数据)
+    const lastRoundHistory = t.history && t.history.length > 0 ? t.history[t.history.length - 1] : null;
     const prevMatches = lastRoundHistory ? lastRoundHistory.matches : [];
 
     if (prevMatches && prevMatches.length > 0) {
@@ -722,6 +733,77 @@ export default function DrawView({ onStartMatch }) {
 
     const updatedTournaments = tournaments.map(tour => tour.id === t.id ? updatedT : tour);
     saveStore({ tournaments: updatedTournaments });
+  };
+
+  // 重置整届赛程回到最初的状况 (分组不变，赛果清空)
+  const resetTournament = () => {
+    if (!isAdmin) {
+      alert('权限不足，仅系统管理员可执行整届重赛！');
+      return;
+    }
+
+    if (confirm('⚠️ 警告：确定要重置当前赛程吗？\n这将清空本届赛程所有的比赛比分、晋级记录和历史数据，直接回到赛程最开始的初始状态 (原有分组与对阵保持不变)。\n此操作不可撤销，确定要重置吗？')) {
+      const updatedTournaments = tournaments.map(tour => {
+        if (tour.id !== t.id) return tour;
+
+        let restoredMatches = [];
+        let restoredStage = tour.stage;
+        let restoredRound = 1;
+        
+        // 1. 恢复最初的比赛对阵
+        // 如果有 history，第一条历史记录 (history[0]) 就包含了最初始阶段的比赛对阵
+        if (tour.history && tour.history.length > 0) {
+          restoredMatches = tour.history[0].matches.map(m => ({
+            ...m,
+            completed: false,
+            winner: null,
+            score1: 0,
+            score2: 0
+          }));
+          restoredStage = tour.history[0].round === '小组循环赛' ? 'group' : 'knockout';
+        } else {
+          // 如果 history 为空，说明当前就是初始阶段，直接将 currentMatches 比分归零
+          restoredMatches = tour.currentMatches.map(m => ({
+            ...m,
+            completed: false,
+            winner: null,
+            score1: 0,
+            score2: 0
+          }));
+        }
+
+        // 2. 恢复最初的 activeTeams 活跃球队列表 (从 groups 中提取所有球队并去重)
+        let restoredActiveTeams = [];
+        if (tour.groups) {
+          Object.values(tour.groups).forEach(groupList => {
+            groupList.forEach(team => {
+              if (!restoredActiveTeams.some(x => x.id === team.id)) {
+                restoredActiveTeams.push(team);
+              }
+            });
+          });
+        }
+        
+        if (restoredActiveTeams.length === 0) {
+          restoredMatches.forEach(m => {
+            if (m.team1 && !restoredActiveTeams.some(x => x.id === m.team1.id)) restoredActiveTeams.push(m.team1);
+            if (m.team2 && !restoredActiveTeams.some(x => x.id === m.team2.id)) restoredActiveTeams.push(m.team2);
+          });
+        }
+
+        return {
+          ...tour,
+          stage: restoredStage,
+          round: restoredRound,
+          activeTeams: restoredActiveTeams,
+          currentMatches: restoredMatches,
+          history: [] // 历史全部清空
+        };
+      });
+
+      saveStore({ tournaments: updatedTournaments });
+      alert('🔄 赛程已成功重置！已全部恢复到初始状态。');
+    }
   };
 
   // 晋级至淘汰赛阶段
@@ -975,8 +1057,8 @@ export default function DrawView({ onStartMatch }) {
             <i className="bx bx-play"></i> 进入比赛
           </button>
         ) : (
-          <div style={{ textAlign: 'center', color: 'var(--success)', marginTop: '1rem', fontWeight: 600 }}>
-            <i className="bx bx-check"></i> 已完赛
+          <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.75rem' }}>
+            <i className="bx bx-check-circle"></i> 已完赛
           </div>
         )}
       </div>
@@ -1255,12 +1337,25 @@ export default function DrawView({ onStartMatch }) {
   };
 
   // 顶栏按钮与文本状态判定
-  const allCompleted = t && t.currentMatches && t.currentMatches.length > 0 && t.currentMatches.every(m => m.completed);
+  const currentMatchesExist = t && t.currentMatches && t.currentMatches.length > 0;
+  const allCompleted = currentMatchesExist && t.currentMatches.every(m => m.completed);
   const isGroupStage = t && t.stage === 'group';
   
-  const drawBtnText = allCompleted 
-    ? (isGroupStage ? '等待晋级' : '生成下一轮对阵') 
-    : '随机抽签';
+  const drawBtnText = (() => {
+    if (isGroupStage) {
+      return allCompleted ? '等待晋级' : '随机抽签';
+    }
+    
+    // 淘汰赛阶段：如果当前轮次的比赛已被清空（说明刚刚打完，正等待生成下一轮对阵）
+    const hasHistory = t && t.history && t.history.length > 0;
+    if (t && (!t.currentMatches || t.currentMatches.length === 0)) {
+      return (t.round > 1 || hasHistory) ? '生成下一轮对阵' : '随机抽签';
+    }
+    
+    return allCompleted ? '生成下一轮对阵' : '随机抽签';
+  })();
+
+  const drawBtnIconClass = drawBtnText === '生成下一轮对阵' ? 'bx bx-git-branch' : 'bx bx-shuffle';
 
   const showEndBtn = t && (
     (t.stage !== 'group' && t.activeTeams && t.activeTeams.length === 1) || 
@@ -1296,12 +1391,30 @@ export default function DrawView({ onStartMatch }) {
                 onClick={drawNextRound}
                 disabled={t && t.currentMatches && t.currentMatches.length > 0 && !allCompleted}
               >
-                <i className="bx bx-shuffle"></i> {drawBtnText}
+                <i className={drawBtnIconClass}></i> {drawBtnText}
               </button>
             )}
             {isAdmin && showEndBtn && (
               <button id="end-tournament-btn" className="danger-btn" style={{ width: 'auto' }} onClick={endTournament}>
                 <i className="bx bx-archive-in"></i> {t.activeTeams && t.activeTeams.length === 1 ? '归档本届赛程' : '结束并归档赛程'}
+              </button>
+            )}
+            {isAdmin && t && (
+              <button
+                id="reset-tournament-btn"
+                className="danger-btn"
+                style={{
+                  width: 'auto',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onClick={resetTournament}
+                title="重置当前赛程的所有比分与晋级记录，直接回到小组赛起点"
+              >
+                <i className="bx bx-refresh"></i> 重赛本届赛程
               </button>
             )}
           </div>

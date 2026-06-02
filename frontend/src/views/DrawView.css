@@ -549,3 +549,10 @@
     max-width: 100%;
   }
 }
+
+/* 重赛按钮悬停样式 */
+.rematch-btn:hover {
+  background-color: rgba(239, 68, 68, 0.16) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  transform: scale(1.02);
+}

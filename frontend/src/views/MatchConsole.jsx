@@ -447,6 +447,18 @@ export default function MatchConsole({ match, onBack }) {
           // 仅在淘汰赛阶段才在全部完赛后归档轮次、推进轮次并置空当前对阵
           // 循环赛阶段必须保留 currentMatches 用以计算积分榜，并由管理员手动点击“晋级”生成下一阶段对阵
           if (tState.stage !== 'group') {
+            // 强力校准 activeTeams：只保留本轮所有完赛比赛的 winner，防止单场重赛完赛时出现败者残留
+            const currentWinners = [];
+            tState.currentMatches.forEach(m => {
+              if (m.winner) {
+                currentWinners.push(m.winner);
+              } else {
+                const w = m.score1 > m.score2 ? m.team1 : m.team2;
+                if (w) currentWinners.push(w);
+              }
+            });
+            tState.activeTeams = currentWinners;
+
             tState.history.push({
               round: tState.round,
               matches: JSON.parse(JSON.stringify(tState.currentMatches))

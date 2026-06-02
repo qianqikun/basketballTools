@@ -291,6 +291,9 @@ export default function App() {
   const handleStartMatch = (match) => {
     setActiveMatch(match);
     localStorage.setItem('hoops_manager_active_match_id', match.id);
+    if (match.tournamentId) {
+      localStorage.setItem('hoops_manager_active_tournament_id', match.tournamentId);
+    }
     navigate('/match');
   };
 

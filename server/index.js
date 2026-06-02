@@ -402,10 +402,18 @@ function validateStoreChange(oldStore, newStore, role) {
         return { valid: false, error: '权限不足，仅系统管理员可手动变更比赛对阵结构' };
       }
       for (let j = 0; j < oldMatches.length; j++) {
-        if (oldMatches[j].id !== newMatches[j].id || 
-            (oldMatches[j].team1 && newMatches[j].team1 && oldMatches[j].team1.id !== newMatches[j].team1.id) ||
-            (oldMatches[j].team2 && newMatches[j].team2 && oldMatches[j].team2.id !== newMatches[j].team2.id)) {
+        const oldM = oldMatches[j];
+        const newM = newMatches[j];
+        
+        if (oldM.id !== newM.id || 
+            (oldM.team1 && newM.team1 && oldM.team1.id !== newM.team1.id) ||
+            (oldM.team2 && newM.team2 && oldM.team2.id !== newM.team2.id)) {
           return { valid: false, error: '权限不足，仅系统管理员可修改对阵球队信息' };
+        }
+        
+        // 🚨 安全越权防护：非管理员（如普通记分员/球员）绝对不允许将已完赛的比赛重置为未完赛（即发起重赛）
+        if (oldM.completed && !newM.completed) {
+          return { valid: false, error: '权限不足，仅系统管理员可发起重赛以重置已完赛的比赛赛果' };
         }
       }
     }
