@@ -1387,7 +1387,7 @@ export default function DrawView({ onStartMatch }) {
               '等待开启赛程'
             )}
           </h3>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div className="action-buttons-group" style={{ display: 'flex', gap: '1rem' }}>
             {isAdmin && t && t.stage !== 'group' && t.activeTeams && t.activeTeams.length > 1 && (
               <button
                 id="draw-lots-btn"
@@ -1395,12 +1395,16 @@ export default function DrawView({ onStartMatch }) {
                 onClick={drawNextRound}
                 disabled={t && t.currentMatches && t.currentMatches.length > 0 && !allCompleted}
               >
-                <i className={drawBtnIconClass}></i> {drawBtnText}
+                <i className={drawBtnIconClass}></i>
+                <span className="btn-text-long">{drawBtnText}</span>
+                <span className="btn-text-short">
+                  {drawBtnText === '随机抽签' ? '抽签' : (drawBtnText === '生成下一轮对阵' ? '下轮' : '等待')}
+                </span>
               </button>
             )}
             {isAdmin && showEndBtn && (
               <button id="end-tournament-btn" className="danger-btn" style={{ width: 'auto' }} onClick={endTournament}>
-                <i className="bx bx-archive-in"></i> {t.activeTeams && t.activeTeams.length === 1 ? '归档本届赛程' : '结束并归档赛程'}
+                <i className="bx bx-archive-in"></i> <span className="btn-text-long">{t.activeTeams && t.activeTeams.length === 1 ? '归档本届赛程' : '结束并归档赛程'}</span><span className="btn-text-short">归档</span>
               </button>
             )}
             {isAdmin && t && (
@@ -1418,7 +1422,7 @@ export default function DrawView({ onStartMatch }) {
                 onClick={resetTournament}
                 title="重置当前赛程的所有比分与晋级记录，直接回到小组赛起点"
               >
-                <i className="bx bx-refresh"></i> 重赛本届赛程
+                <i className="bx bx-refresh"></i> <span className="btn-text-long">重赛本届赛程</span><span className="btn-text-short">重赛</span>
               </button>
             )}
           </div>

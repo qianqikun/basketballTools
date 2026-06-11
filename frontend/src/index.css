@@ -816,7 +816,7 @@ button {
     flex-direction: column;
   }
 
-  /* 侧边栏转换为顶部粘性导航条 */
+  /* 侧边栏转换为顶部固定导航条，确保不同页面下高度和定位绝对一致 */
   .sidebar {
     width: 100%;
     height: 70px;
@@ -824,9 +824,10 @@ button {
     align-items: center;
     justify-content: space-between;
     padding: 0 1.5rem;
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 100;
+    left: 0;
+    z-index: 1000;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 
@@ -890,9 +891,9 @@ button {
     display: flex;
   }
 
-  /* 主内容区域自适应 */
+  /* 主内容区域自适应，防止内容被 fixed 定位的 70px 顶栏遮挡，确保所有页面头部高度表现绝对一致 */
   .main-content {
-    padding: 1.5rem 1rem;
+    padding: calc(70px + 1.5rem) 1rem 1.5rem 1rem !important;
     overflow-y: visible;
   }
 

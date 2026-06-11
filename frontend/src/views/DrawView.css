@@ -548,6 +548,43 @@
     width: 100%;
     max-width: 100%;
   }
+  
+  .btn-text-short {
+    display: inline !important;
+  }
+  .btn-text-long {
+    display: none !important;
+  }
+
+  /* 移动端操作按钮组重构：等分宽度，上 icon 下文案 */
+  .action-buttons-group {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+    margin-top: 1rem !important;
+  }
+  
+  .action-buttons-group button {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important; /* 核心：上 icon 下文案 */
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 0.6rem 0.25rem !important; /* 精致小巧的内边距 */
+    font-size: 0.75rem !important; /* 精致的 12px 字号 */
+    line-height: 1.2 !important;
+    min-width: 0 !important;
+    height: auto !important;
+    border-radius: 8px !important; /* 精致的 8px 圆角 */
+  }
+  
+  .action-buttons-group button i {
+    font-size: 1.15rem !important; /* 精致的图标大小 */
+    margin: 0 !important;
+  }
 }
 
 /* 重赛按钮悬停样式 */
@@ -555,4 +592,25 @@
   background-color: rgba(239, 68, 68, 0.16) !important;
   border-color: rgba(239, 68, 68, 0.45) !important;
   transform: scale(1.02);
+}
+
+/* 响应式按钮文字默认样式 */
+.btn-text-short {
+  display: none;
+}
+.btn-text-long {
+  display: inline;
+}
+
+/* 操作按钮组默认大屏样式 */
+.action-buttons-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.action-buttons-group button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }

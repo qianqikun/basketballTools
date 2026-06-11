@@ -551,7 +551,7 @@ export default function MatchConsole({ match, onBack }) {
         <div className="match-info-bar">
           <span>当前对阵{tournamentNameText}{refereeText}</span>
           <button id="back-to-tournament" className="secondary-btn" onClick={handleExit}>
-            <i className="bx bx-arrow-back"></i> 返回对阵
+            <i className="bx bx-arrow-back"></i> <span>返回</span>
           </button>
         </div>
 

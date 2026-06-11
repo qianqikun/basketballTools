@@ -19,24 +19,35 @@ app.use('/worldCupTool', express.static(path.join(__dirname, '../worldCupTool'))
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
-// 内存中维护的会话
-const activeSessions = {}; // token => sessionData
+// JWT 密钥配置：优先使用环境变量中的 JWT_SECRET，在 Docker 部署中可通过该变量覆盖。
+const JWT_SECRET = process.env.JWT_SECRET || 'hoops_secret_key_change_me_in_prod';
 
 // 登录认证中间件
-const requireAuth = (req, res, next) => {
+const requireAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: '未登录，请先登录' });
   }
   const token = authHeader.split(' ')[1];
-  const session = activeSessions[token];
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) delete activeSessions[token]; // 清理过期 session
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    // 从数据库中查询该用户的最新数据，以保证昵称、角色是最新状态
+    const user = await db.getUserByUsername(decoded.username);
+    if (!user) {
+      return res.status(401).json({ success: false, error: '登录已失效，用户不存在' });
+    }
+    req.session = {
+      userId: user.id,
+      username: user.username,
+      nickname: user.nickname,
+      role: user.role
+    };
+    next();
+  } catch (err) {
     return res.status(401).json({ success: false, error: '登录已失效，请重新登录' });
   }
-  req.session = session;
-  next();
 };
 
 // 管理员认证中间件
@@ -105,15 +116,11 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ success: false, error: '用户名或密码错误' });
     }
 
-    // 生成随机 token
-    const token = crypto.randomBytes(32).toString('hex');
-    activeSessions[token] = {
+    // 使用 jwt 生成永久有效的 token
+    const token = jwt.sign({
       userId: user.id,
-      username: user.username,
-      nickname: user.nickname,
-      role: user.role,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 小时过期
-    };
+      username: user.username
+    }, JWT_SECRET);
 
     res.json({
       success: true,
@@ -158,11 +165,6 @@ app.post('/api/auth/update-nickname', requireAuth, async (req, res) => {
     if (success) {
       // 同步更新 session
       req.session.nickname = nickname;
-      for (const token in activeSessions) {
-        if (activeSessions[token].userId === userId) {
-          activeSessions[token].nickname = nickname;
-        }
-      }
       res.json({ success: true, message: '昵称修改成功' });
     } else {
       res.status(400).json({ success: false, error: '修改昵称失败，用户未找到' });
@@ -260,13 +262,6 @@ app.post('/api/users/update-nickname', requireAdmin, async (req, res) => {
       // 如果修改的是当前发送请求的管理员自己，需要在 Session 里也同步修改昵称
       if (parseInt(userId) === req.session.userId) {
         req.session.nickname = newNickname;
-        
-        // 我们也需要更新 activeSessions 里的这一项
-        for (const token in activeSessions) {
-          if (activeSessions[token].userId === req.session.userId) {
-            activeSessions[token].nickname = newNickname;
-          }
-        }
       }
       res.json({ success: true, message: '昵称修改成功' });
     } else {
@@ -640,19 +635,28 @@ wss.on('connection', (ws) => {
     payload: globalLiveMatches
   }));
 
-  ws.on('message', (message) => {
+  ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
       switch (data.type) {
         case 'AUTH':
           if (data.payload && data.payload.token) {
-            const session = activeSessions[data.payload.token];
-            if (session && session.expiresAt > Date.now()) {
-              ws.username = session.username;
-              ws.nickname = session.nickname;
-              console.log(`[DEBUG] [AUTH_SUCCESS] 🔑 WebSocket 连接 [${ws.id}] 已绑定登录账户: ${ws.username} (${ws.nickname})`);
-            } else {
-              console.warn(`[DEBUG] [AUTH_FAIL] 🔒 WebSocket 连接 [${ws.id}] 提供的 token 在服务器中未找到或已过期`);
+            try {
+              const decoded = jwt.verify(data.payload.token, JWT_SECRET);
+              const user = await db.getUserByUsername(decoded.username);
+              if (user) {
+                ws.username = user.username;
+                ws.nickname = user.nickname;
+                console.log(`[DEBUG] [AUTH_SUCCESS] 🔑 WebSocket 连接 [${ws.id}] 已绑定登录账户: ${ws.username} (${ws.nickname})`);
+              } else {
+                console.warn(`[DEBUG] [AUTH_FAIL] 🔒 WebSocket 连接 [${ws.id}] 提供的 token 指向的用户不存在`);
+                ws.send(JSON.stringify({ 
+                  type: 'AUTH_FAILED', 
+                  payload: { error: '登录已失效，请重新登录' } 
+                }));
+              }
+            } catch (err) {
+              console.warn(`[DEBUG] [AUTH_FAIL] 🔒 WebSocket 连接 [${ws.id}] 提供的 token 校验失败`);
               ws.send(JSON.stringify({ 
                 type: 'AUTH_FAILED', 
                 payload: { error: '登录已失效，请重新登录' } 

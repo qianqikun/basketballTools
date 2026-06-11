@@ -297,6 +297,30 @@
     border-radius: 4px;
   }
 
+  /* 移动端下返回按钮垂直排版：上 icon 下文案，与归档、重赛样式保持完全一致 */
+  #back-to-tournament {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 0.6rem 0.25rem !important; /* 精致小巧的内边距 */
+    font-size: 0.75rem !important; /* 精致的 12px 字号 */
+    line-height: 1.2 !important;
+    border-radius: 8px !important; /* 精致的 8px 圆角 */
+    width: 58px !important; /* 对应精致化后的窄宽度 */
+    height: auto !important;
+    min-width: 0 !important;
+  }
+
+  #back-to-tournament i {
+    font-size: 1.15rem !important; /* 精致的图标大小 */
+    margin: 0 !important;
+  }
+
+  #back-to-tournament span {
+    font-size: 0.75rem !important; /* 精致的 12px 字号 */
+  }
 }
 
 /* Live settings Accordion & Stream Guide */
