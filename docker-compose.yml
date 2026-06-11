@@ -13,6 +13,7 @@ services:
       - PORT=3000
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=admin123
+      - JWT_SECRET=${JWT_SECRET:-hoops_secret_key_change_me_in_prod}
     volumes:
       - ./data:/app/data
     logging:
